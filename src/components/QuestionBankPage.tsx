@@ -40,7 +40,8 @@ import {
   Image,
   Search,
   Sync,
-  CloudOff
+  CloudOff,
+  Refresh
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { 
@@ -49,7 +50,11 @@ import {
   deleteQuestion,
   subscribeToQuestions,
   initializeFirestoreData,
-  syncLocalToFirestore 
+  syncLocalToFirestore,
+  syncFirestoreToLocal,
+  fullSync,
+  clearAllCaches,
+  forceRefreshFromFirebase
 } from '../services/questionService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -93,13 +98,33 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   const handleSync = useCallback(async () => {
     try {
       setSaving(true);
-      await syncLocalToFirestore();
-      showSnackbar('로컬 데이터가 성공적으로 동기화되었습니다.', 'success');
+      await fullSync();
+      showSnackbar('양방향 동기화가 성공적으로 완료되었습니다.', 'success');
     } catch (error) {
       console.error('동기화 실패:', error);
       showSnackbar('동기화에 실패했습니다.', 'error');
     } finally {
       setSaving(false);
+    }
+  }, []);
+
+  const handleForceRefresh = useCallback(async () => {
+    try {
+      setSaving(true);
+      const latestQuestions = await forceRefreshFromFirebase();
+      setQuestions(latestQuestions);
+      showSnackbar(`최신 데이터 ${latestQuestions.length}개 문제를 강제로 가져왔습니다.`, 'success');
+    } catch (error) {
+      console.error('강제 새로고침 실패:', error);
+      showSnackbar('강제 새로고침에 실패했습니다.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const handleClearCache = useCallback(() => {
+    if (window.confirm('모든 캐시를 지우고 페이지를 새로고침하시겠습니까?\n\n⚠️ 저장되지 않은 작업이 있다면 먼저 동기화를 해주세요.')) {
+      clearAllCaches();
     }
   }, []);
 
@@ -320,16 +345,39 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
             📚 기출문제 관리
           </Typography>
           
-          {/* 동기화 버튼 */}
-          <Button
-            variant="outlined"
-            startIcon={saving ? <CircularProgress size={16} /> : <Sync />}
-            onClick={handleSync}
-            disabled={!isOnline || saving}
-            sx={{ mr: 2 }}
-          >
-            {saving ? '동기화 중...' : '동기화'}
-          </Button>
+          {/* 동기화 버튼들 */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={saving ? <CircularProgress size={16} /> : <Sync />}
+              onClick={handleSync}
+              disabled={!isOnline || saving}
+              size="small"
+            >
+              {saving ? '동기화 중...' : '동기화'}
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={saving ? <CircularProgress size={16} /> : <Refresh />}
+              onClick={handleForceRefresh}
+              disabled={!isOnline || saving}
+              size="small"
+            >
+              강제 새로고침
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<Delete />}
+              onClick={handleClearCache}
+              size="small"
+            >
+              캐시 지우기
+            </Button>
+          </Box>
         </Box>
         
         {/* 필터 및 검색 */}

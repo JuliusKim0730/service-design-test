@@ -118,9 +118,7 @@ export const sampleQuestions: Question[] = [
       '경험하기(Hear) - 창작하기(Create) - 전달하기(Deliver)'
     ],
     correctAnswer: 0,
-    explanation: '스탠포드 대학의 D. School에서 개발한 디자인씽킹 프로세스는 공감하기(Empathize) - 정의하기(Define) - 아이디어 내기(Ideate) - 프로토타입 만들기(Prototype) - 평가하기(Test)입니다.',
-    imageUrl: 'https://via.placeholder.com/600x300/1976d2/ffffff?text=Design+Thinking+Process',
-    explanationImageUrl: 'https://via.placeholder.com/500x250/4CAF50/ffffff?text=Design+Thinking+Explanation'
+    explanation: '스탠포드 대학의 D. School에서 개발한 디자인씽킹 프로세스는 공감하기(Empathize) - 정의하기(Define) - 아이디어 내기(Ideate) - 프로토타입 만들기(Prototype) - 평가하기(Test)입니다.'
   },
   {
     id: 10,
@@ -172,8 +170,7 @@ export const sampleQuestions: Question[] = [
       '④ 일관성(Consistency)'
     ],
     correctAnswer: 1,
-    explanation: '사용법의 오류를 줄일을 수 있는 사용자 입장에서 제기하거나 줄이 실수를 시스템이 방지하는 속성을 오류 예방(Error prevention)이라고 한다.',
-    imageUrl: 'https://via.placeholder.com/500x250/4CAF50/ffffff?text=Error+Prevention+Dialog'
+    explanation: '사용법의 오류를 줄일을 수 있는 사용자 입장에서 제기하거나 줄이 실수를 시스템이 방지하는 속성을 오류 예방(Error prevention)이라고 한다.'
   },
   {
     id: 14,

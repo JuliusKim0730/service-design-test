@@ -25,7 +25,7 @@ import {
   Stop as StopIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
-import { getAllQuestions } from '../data/questions';
+import { subscribeToQuestions } from '../services/questionService';
 
 interface StudyPageProps {
   onBackToHome: () => void;
@@ -40,10 +40,28 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [showStopDialog, setShowStopDialog] = useState(false);
 
   useEffect(() => {
-    // 모든 문제를 섞어서 가져오기
-    const allQuestions = getAllQuestions();
-    const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
-    setQuestions(shuffledQuestions);
+    // Firebase에서 실시간으로 모든 문제를 구독하여 가져오기
+    const unsubscribe = subscribeToQuestions((allQuestions) => {
+      console.log('🔄 실시간 데이터 업데이트 - 전체 문제 수:', allQuestions.length);
+      
+      // 이미지가 있는 문제 확인
+      const questionsWithImages = allQuestions.filter(q => q.imageUrl);
+      console.log('📷 이미지가 있는 문제:', questionsWithImages.length);
+      questionsWithImages.forEach(q => {
+        console.log(`문제 ${q.id}: ${q.imageUrl?.substring(0, 50)}...`);
+      });
+      
+      // 문제 섞기 (매번 다른 순서로)
+      const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+      setQuestions(shuffledQuestions);
+    });
+
+    // 컴포넌트 언마운트 시 구독 해제
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -198,6 +216,13 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
               src={currentQuestion.imageUrl} 
               alt="문제 이미지" 
               style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+              onError={(e) => {
+                console.error('이미지 로드 실패:', currentQuestion.imageUrl);
+                e.currentTarget.style.display = 'none';
+              }}
+              onLoad={() => {
+                console.log('이미지 로드 성공:', currentQuestion.imageUrl?.substring(0, 50));
+              }}
             />
           </Box>
         )}
@@ -314,6 +339,13 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
                   src={currentQuestion.explanationImageUrl} 
                   alt="해설 이미지" 
                   style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                  onError={(e) => {
+                    console.error('해설 이미지 로드 실패:', currentQuestion.explanationImageUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  onLoad={() => {
+                    console.log('해설 이미지 로드 성공:', currentQuestion.explanationImageUrl?.substring(0, 50));
+                  }}
                 />
               </Box>
             )}

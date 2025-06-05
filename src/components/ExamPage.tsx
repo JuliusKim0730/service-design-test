@@ -155,6 +155,13 @@ const ExamPage: React.FC<ExamPageProps> = ({ questions, onExamComplete, onBackTo
                   border: '1px solid #e0e0e0',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                 }}
+                onError={(e) => {
+                  console.error('이미지 로드 실패:', currentQuestion.imageUrl);
+                  e.currentTarget.style.display = 'none';
+                }}
+                onLoad={() => {
+                  console.log('이미지 로드 성공:', currentQuestion.imageUrl?.substring(0, 50));
+                }}
               />
             </Box>
           )}

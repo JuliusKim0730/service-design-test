@@ -10,11 +10,35 @@ import {
   orderBy 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Question } from '../types/Question';
+import { Question, Subject } from '../types/Question';
 import { sampleQuestions } from '../data/questions';
 
 const QUESTIONS_COLLECTION = 'questions';
 const LOCAL_STORAGE_KEY = 'service_design_questions';
+
+// 이미지 URL 유효성 검사 함수
+const isValidImageUrl = (url: string): boolean => {
+  // 빈 문자열이거나 undefined인 경우만 제외
+  if (!url || url.trim() === '') {
+    return false;
+  }
+  
+  // Base64 이미지인 경우 (가장 일반적)
+  if (url.startsWith('data:image/')) {
+    console.log('✅ Base64 이미지 확인:', url.substring(0, 30) + '...');
+    return true;
+  }
+  
+  // HTTP/HTTPS URL인 경우도 허용
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    console.log('🌐 URL 이미지 확인:', url);
+    return true;
+  }
+  
+  // 기타 모든 경우도 일단 허용
+  console.log('❓ 기타 이미지 URL:', url.substring(0, 50) + '...');
+  return true;
+};
 
 // Firebase 연결 확인 함수
 const isFirebaseAvailable = (): boolean => {
@@ -45,9 +69,10 @@ const loadFromLocalStorage = (): Question[] => {
 export const initializeFirestoreData = async (): Promise<void> => {
   if (!isFirebaseAvailable()) {
     console.warn('Firebase를 사용할 수 없습니다. 로컬 스토리지만 사용됩니다.');
-    // 로컬 스토리지에 초기 데이터가 없으면 추가
+    // 로컬 스토리지에 초기 데이터가 없으면 추가 (개발 환경에서만)
     const localQuestions = loadFromLocalStorage();
-    if (localQuestions.length === 0) {
+    if (localQuestions.length === 0 && process.env.NODE_ENV === 'development') {
+      console.log('🛠️ 개발 환경: 로컬 스토리지에 샘플 데이터 추가');
       saveToLocalStorage(sampleQuestions);
     }
     return;
@@ -56,21 +81,28 @@ export const initializeFirestoreData = async (): Promise<void> => {
   try {
     const questionsSnapshot = await getDocs(collection(db!, QUESTIONS_COLLECTION));
     
+    // Firebase가 비어있어도 샘플 데이터를 자동으로 추가하지 않음
     if (questionsSnapshot.empty) {
-      console.log('Firestore에 데이터가 없습니다. 초기 데이터를 추가합니다...');
+      console.log('🔥 Firestore가 비어있습니다. 기출문제 관리에서 문제를 추가해주세요.');
       
-      for (const question of sampleQuestions) {
-        await setDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), question);
+      // 개발 환경에서만 샘플 데이터 추가
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🛠️ 개발 환경: Firebase에 샘플 데이터 추가');
+        for (const question of sampleQuestions) {
+          await setDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), question);
+        }
+        console.log('초기 데이터 추가 완료');
+        saveToLocalStorage(sampleQuestions);
       }
-      
-      console.log('초기 데이터 추가 완료');
-      saveToLocalStorage(sampleQuestions);
+    } else {
+      console.log('🔥 Firebase에서 기존 데이터 발견:', questionsSnapshot.size, '개 문제');
     }
   } catch (error) {
     console.error('Firestore 초기화 실패:', error);
-    // 로컬 스토리지에 초기 데이터가 없으면 추가
+    // 로컬 스토리지에 초기 데이터가 없으면 추가 (개발 환경에서만)
     const localQuestions = loadFromLocalStorage();
-    if (localQuestions.length === 0) {
+    if (localQuestions.length === 0 && process.env.NODE_ENV === 'development') {
+      console.log('🛠️ 개발 환경: 오류 시 로컬 스토리지에 샘플 데이터 추가');
       saveToLocalStorage(sampleQuestions);
     }
   }
@@ -80,7 +112,12 @@ export const initializeFirestoreData = async (): Promise<void> => {
 export const getAllQuestions = async (): Promise<Question[]> => {
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지에서 데이터를 불러옵니다...');
-    return loadFromLocalStorage();
+    const localQuestions = loadFromLocalStorage();
+    return localQuestions.map(q => ({
+      ...q,
+      imageUrl: q.imageUrl && isValidImageUrl(q.imageUrl) ? q.imageUrl : undefined,
+      explanationImageUrl: q.explanationImageUrl && isValidImageUrl(q.explanationImageUrl) ? q.explanationImageUrl : undefined
+    }));
   }
 
   try {
@@ -90,7 +127,13 @@ export const getAllQuestions = async (): Promise<Question[]> => {
     
     const questions: Question[] = [];
     questionsSnapshot.forEach((doc) => {
-      questions.push(doc.data() as Question);
+      const questionData = doc.data() as Question;
+      // 이미지 URL 검증 후 추가
+      questions.push({
+        ...questionData,
+        imageUrl: questionData.imageUrl && isValidImageUrl(questionData.imageUrl) ? questionData.imageUrl : undefined,
+        explanationImageUrl: questionData.explanationImageUrl && isValidImageUrl(questionData.explanationImageUrl) ? questionData.explanationImageUrl : undefined
+      });
     });
     
     // 로컬 스토리지에도 백업
@@ -100,7 +143,12 @@ export const getAllQuestions = async (): Promise<Question[]> => {
   } catch (error) {
     console.error('Firestore에서 문제 가져오기 실패:', error);
     console.log('로컬 스토리지에서 데이터를 불러옵니다...');
-    return loadFromLocalStorage();
+    const localQuestions = loadFromLocalStorage();
+    return localQuestions.map(q => ({
+      ...q,
+      imageUrl: q.imageUrl && isValidImageUrl(q.imageUrl) ? q.imageUrl : undefined,
+      explanationImageUrl: q.explanationImageUrl && isValidImageUrl(q.explanationImageUrl) ? q.explanationImageUrl : undefined
+    }));
   }
 };
 
@@ -108,7 +156,9 @@ export const getAllQuestions = async (): Promise<Question[]> => {
 export const subscribeToQuestions = (callback: (questions: Question[]) => void) => {
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지 데이터를 사용합니다...');
-    callback(loadFromLocalStorage());
+    const localQuestions = loadFromLocalStorage();
+    console.log('📁 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
+    callback(localQuestions);
     return () => {}; // 빈 unsubscribe 함수 반환
   }
 
@@ -118,8 +168,15 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
     return onSnapshot(q, (snapshot) => {
       const questions: Question[] = [];
       snapshot.forEach((doc) => {
-        questions.push(doc.data() as Question);
+        const questionData = doc.data() as Question;
+        questions.push(questionData);
       });
+      
+      console.log('🔥 Firebase에서 로드된 문제 수:', questions.length);
+      
+      // 이미지가 있는 문제 확인
+      const questionsWithImages = questions.filter(q => q.imageUrl);
+      console.log('📷 이미지가 있는 문제 수:', questionsWithImages.length);
       
       // 로컬 스토리지에도 백업
       saveToLocalStorage(questions);
@@ -127,12 +184,16 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
     }, (error) => {
       console.error('실시간 데이터 구독 실패:', error);
       // 오류 시 로컬 스토리지에서 불러오기
-      callback(loadFromLocalStorage());
+      const localQuestions = loadFromLocalStorage();
+      console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
+      callback(localQuestions);
     });
   } catch (error) {
     console.error('실시간 구독 설정 실패:', error);
     // 오류 시 로컬 스토리지에서 불러오기
-    callback(loadFromLocalStorage());
+    const localQuestions = loadFromLocalStorage();
+    console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
+    callback(localQuestions);
     return () => {}; // 빈 unsubscribe 함수 반환
   }
 };
@@ -234,14 +295,167 @@ export const syncLocalToFirestore = async (): Promise<void> => {
       return;
     }
     
-    console.log('로컬 데이터를 Firestore에 동기화 중...');
+    console.log('📤 로컬 데이터를 Firestore에 동기화 중...');
     
     for (const question of localQuestions) {
       await setDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), question);
     }
     
-    console.log('동기화 완료');
+    console.log('✅ 로컬 → Firebase 동기화 완료');
   } catch (error) {
     console.error('동기화 실패:', error);
+  }
+};
+
+// Firebase에서 로컬로 강제 동기화 (최신 데이터 가져오기)
+export const syncFirestoreToLocal = async (): Promise<Question[]> => {
+  if (!isFirebaseAvailable()) {
+    console.warn('Firebase를 사용할 수 없습니다.');
+    return loadFromLocalStorage();
+  }
+
+  try {
+    console.log('📥 Firebase에서 최신 데이터를 가져오는 중...');
+    
+    const questionsSnapshot = await getDocs(
+      query(collection(db!, QUESTIONS_COLLECTION), orderBy('id', 'asc'))
+    );
+    
+    const questions: Question[] = [];
+    questionsSnapshot.forEach((doc) => {
+      const questionData = doc.data() as Question;
+      questions.push(questionData);
+    });
+    
+    console.log('🔥 Firebase에서 가져온 최신 문제 수:', questions.length);
+    
+    // 로컬 스토리지 강제 업데이트
+    saveToLocalStorage(questions);
+    console.log('✅ Firebase → 로컬 동기화 완료');
+    
+    return questions;
+  } catch (error) {
+    console.error('Firebase에서 데이터 가져오기 실패:', error);
+    return loadFromLocalStorage();
+  }
+};
+
+// 양방향 완전 동기화
+export const fullSync = async (): Promise<Question[]> => {
+  console.log('🔄 양방향 완전 동기화 시작...');
+  
+  // 1단계: Firebase에서 최신 데이터 가져오기
+  const latestQuestions = await syncFirestoreToLocal();
+  
+  // 2단계: 혹시 로컬에만 있는 데이터가 있다면 Firebase에 업로드
+  await syncLocalToFirestore();
+  
+  // 3단계: 다시 최신 데이터 가져오기
+  const finalQuestions = await syncFirestoreToLocal();
+  
+  console.log('✅ 양방향 완전 동기화 완료');
+  return finalQuestions;
+};
+
+// 캐시 클리어 및 강제 새로고침
+export const clearAllCaches = (): void => {
+  console.log('🧹 모든 캐시 완전 클리어 중...');
+  
+  try {
+    // 메인 스토리지 키 클리어
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    sessionStorage.removeItem(LOCAL_STORAGE_KEY);
+    
+    // 관련된 모든 키 찾아서 제거
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('question') || key.includes('service_design') || key.includes('exam') || key.includes('study'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // 세션 스토리지도 동일하게 처리
+    const sessionKeysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (key.includes('question') || key.includes('service_design') || key.includes('exam') || key.includes('study'))) {
+        sessionKeysToRemove.push(key);
+      }
+    }
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+    
+    console.log('✅ 로컬 스토리지 완전 클리어 완료');
+    console.log('🗑️ 제거된 로컬 키:', keysToRemove.length);
+    console.log('🗑️ 제거된 세션 키:', sessionKeysToRemove.length);
+    
+  } catch (error) {
+    console.error('캐시 클리어 실패:', error);
+  }
+  
+  // 브라우저 캐시 클리어 (새로고침)
+  if (typeof window !== 'undefined') {
+    console.log('🔄 페이지 강제 새로고침...');
+    window.location.reload();
+  }
+};
+
+// Firebase에서 강제로 최신 데이터 가져오기 (캐시 무시)
+export const forceRefreshFromFirebase = async (): Promise<Question[]> => {
+  if (!isFirebaseAvailable()) {
+    console.warn('Firebase를 사용할 수 없습니다.');
+    return [];
+  }
+
+  try {
+    console.log('🔥 Firebase에서 강제로 최신 데이터 가져오는 중... (모든 캐시 무시)');
+    
+    // 먼저 모든 로컬 캐시 클리어
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      sessionStorage.clear();
+      console.log('🗑️ 로컬 캐시 완전 클리어');
+    } catch (e) {
+      console.warn('캐시 클리어 중 오류:', e);
+    }
+    
+    // Firebase에서 서버 직접 가져오기 (브라우저 캐시도 무시)
+    const questionsSnapshot = await getDocs(
+      query(collection(db!, QUESTIONS_COLLECTION), orderBy('id', 'asc'))
+    );
+    
+    const questions: Question[] = [];
+    questionsSnapshot.forEach((doc) => {
+      const questionData = doc.data() as Question;
+      questions.push(questionData);
+      console.log(`📝 문제 ${questionData.id}: ${questionData.question.substring(0, 50)}...`);
+    });
+    
+    console.log('🔥 Firebase에서 가져온 REAL 최신 문제 수:', questions.length);
+    
+    // 각 과목별 문제 수 로그
+    const subjects: Subject[] = ['서비스경험디자인기획설계', '사용자조사분석', '사용자중심전략수립', '서비스경험디자인개발및운영'];
+    subjects.forEach(subject => {
+      const count = questions.filter(q => q.subject === subject).length;
+      console.log(`📚 ${subject}: ${count}개`);
+    });
+    
+    // 이미지가 있는 문제 확인
+    const questionsWithImages = questions.filter(q => q.imageUrl && q.imageUrl.trim() !== '');
+    console.log('📷 이미지가 있는 문제 수:', questionsWithImages.length);
+    
+    // 최근 수정된 문제 확인 (ID가 큰 순으로)
+    const recentQuestions = questions.slice(-5);
+    console.log('🆕 최근 5개 문제 ID:', recentQuestions.map(q => q.id));
+    
+    // 로컬 스토리지에 강제 저장
+    saveToLocalStorage(questions);
+    console.log('✅ 로컬 스토리지에 진짜 최신 데이터 저장 완료');
+    
+    return questions;
+  } catch (error) {
+    console.error('Firebase에서 강제 새로고침 실패:', error);
+    return [];
   }
 }; 

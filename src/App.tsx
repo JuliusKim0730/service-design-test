@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, CircularProgress, Box, Typography } from '@mui/material';
 import HomePage from './components/HomePage';
@@ -9,7 +9,8 @@ import ExamResultPage from './components/ExamResultPage';
 import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Question, QuestionResult } from './types/Question';
-import { generateExamQuestions } from './data/questions';
+import { subscribeToQuestions } from './services/questionService';
+import { Subject } from './types/Question';
 
 const theme = createTheme({
   palette: {
@@ -64,11 +65,55 @@ const AuthenticatedApp: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [examQuestions, setExamQuestions] = useState<Question[]>([]);
   const [examResults, setExamResults] = useState<QuestionResult[]>([]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const { authState } = useAuth();
 
+  // Firebase에서 실시간으로 모든 문제 구독
+  useEffect(() => {
+    const unsubscribe = subscribeToQuestions((questions) => {
+      console.log('🔄 App에서 실시간 데이터 업데이트 - 전체 문제 수:', questions.length);
+      setAllQuestions(questions);
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
   const handleStartExam = () => {
-    const questions = generateExamQuestions();
-    setExamQuestions(questions);
+    console.log('🎯 시험 시작 - 사용 가능한 문제 수:', allQuestions.length);
+    
+    if (allQuestions.length === 0) {
+      console.warn('⚠️ 문제가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+      
+    // 과목별로 문제 분류 및 시험 문제 생성
+    const subjects: Subject[] = [
+      '서비스경험디자인기획설계',
+      '사용자조사분석', 
+      '사용자중심전략수립',
+      '서비스경험디자인개발및운영'
+    ];
+
+    const examQuestions: Question[] = [];
+    
+    // 과목별로 순서대로 문제 추가, 각 과목 내에서만 랜덤화
+    subjects.forEach(subject => {
+      const subjectQuestions = allQuestions.filter(q => q.subject === subject);
+      console.log(`📚 ${subject}: ${subjectQuestions.length}개 문제`);
+      
+      // 각 과목 내에서만 문제 순서 랜덤화 (최대 20문제)
+      const shuffledSubjectQuestions = subjectQuestions
+        .sort(() => Math.random() - 0.5)
+        .slice(0, Math.min(20, subjectQuestions.length));
+      examQuestions.push(...shuffledSubjectQuestions);
+    });
+
+    console.log('📝 생성된 시험 문제 수:', examQuestions.length);
+    setExamQuestions(examQuestions);
     setCurrentPage('exam');
   };
 
