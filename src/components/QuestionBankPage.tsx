@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -44,7 +44,6 @@ import {
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { 
-  getAllQuestions,
   addQuestion,
   updateQuestion,
   deleteQuestion,
@@ -66,8 +65,10 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   const [editingQuestion, setEditingQuestion] = useState<Partial<Question>>({});
   const [selectedSubject, setSelectedSubject] = useState<Subject | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [explanationImageFile, setExplanationImageFile] = useState<File | null>(null);
   const [explanationImagePreview, setExplanationImagePreview] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,24 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
     '사용자중심전략수립',
     '서비스경험디자인개발및운영'
   ];
+
+  // 함수 선언
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleSync = useCallback(async () => {
+    try {
+      setSaving(true);
+      await syncLocalToFirestore();
+      showSnackbar('로컬 데이터가 성공적으로 동기화되었습니다.', 'success');
+    } catch (error) {
+      console.error('동기화 실패:', error);
+      showSnackbar('동기화에 실패했습니다.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   // 네트워크 상태 감지
   useEffect(() => {
@@ -104,7 +123,7 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [handleSync]);
 
   // 초기 데이터 로드 및 실시간 구독
   useEffect(() => {
@@ -138,10 +157,6 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       }
     };
   }, []);
-
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning') => {
-    setSnackbar({ open: true, message, severity });
-  };
 
   const filteredQuestions = questions.filter(q => {
     const matchesSubject = selectedSubject === 'all' || q.subject === selectedSubject;
@@ -218,19 +233,6 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       console.error('문제 삭제 실패:', error);
       showSnackbar(isOnline ? '삭제에 실패했습니다.' : '오프라인 상태에서 로컬에서 삭제되었습니다.', 
                    isOnline ? 'error' : 'warning');
-    }
-  };
-
-  const handleSync = async () => {
-    try {
-      setSaving(true);
-      await syncLocalToFirestore();
-      showSnackbar('로컬 데이터가 성공적으로 동기화되었습니다.', 'success');
-    } catch (error) {
-      console.error('동기화 실패:', error);
-      showSnackbar('동기화에 실패했습니다.', 'error');
-    } finally {
-      setSaving(false);
     }
   };
 

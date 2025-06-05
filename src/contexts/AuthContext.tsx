@@ -6,7 +6,7 @@ import {
   User as FirebaseUser
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
-import { User, AuthState, AuthStatus } from '../types/Auth';
+import { User, AuthState } from '../types/Auth';
 
 interface AuthContextType {
   authState: AuthState;

@@ -15,9 +15,6 @@ import {
   IconButton
 } from '@mui/material';
 import {
-  School as SchoolIcon,
-  Quiz as QuizIcon,
-  Assignment as AssignmentIcon,
   Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,6 +29,7 @@ const HomePage: React.FC<HomePageProps> = ({ onStartExam, onGoToQuestionBank, on
   const [showComingSoon, setShowComingSoon] = useState(false);
   const { authState, signOut } = useAuth();
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleComingSoon = () => {
     setShowComingSoon(true);
   };

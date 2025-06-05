@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Button,
   Container,
@@ -17,17 +15,13 @@ import {
   LinearProgress,
   Chip,
   Paper,
-  Divider,
-  IconButton
+  Divider
 } from '@mui/material';
 import {
-  Home as HomeIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   NavigateNext as NavigateNextIcon,
   NavigateBefore as NavigateBeforeIcon,
-  Quiz as QuizIcon,
-  School as SchoolIcon,
   Stop as StopIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
