@@ -1129,7 +1129,7 @@ export const getAllQuestions = (): Question[] => {
   return [...sampleQuestions];
 };
 
-// 전체 시험 문제를 생성하는 함수 (각 과목당 20문제씩)
+// 전체 시험 문제를 생성하는 함수 (각 과목당 20문제씩, 과목별 순서 유지)
 export const generateExamQuestions = (): Question[] => {
   const subjects: Subject[] = [
     '서비스경험디자인기획설계',
@@ -1140,11 +1140,14 @@ export const generateExamQuestions = (): Question[] => {
 
   const examQuestions: Question[] = [];
   
+  // 과목별로 순서대로 문제 추가, 각 과목 내에서만 랜덤화
   subjects.forEach(subject => {
     const subjectQuestions = getQuestionsBySubject(subject, 20);
-    examQuestions.push(...subjectQuestions);
+    // 각 과목 내에서만 문제 순서 랜덤화
+    const shuffledSubjectQuestions = subjectQuestions.sort(() => Math.random() - 0.5);
+    examQuestions.push(...shuffledSubjectQuestions);
   });
 
-  // 문제 순서 랜덤화
-  return examQuestions.sort(() => Math.random() - 0.5);
+  // 전체 문제 순서는 과목별 순서 유지 (랜덤화 하지 않음)
+  return examQuestions;
 }; 
