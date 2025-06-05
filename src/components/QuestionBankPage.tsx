@@ -50,8 +50,6 @@ import {
   deleteQuestion,
   subscribeToQuestions,
   initializeFirestoreData,
-  syncLocalToFirestore,
-  syncFirestoreToLocal,
   fullSync,
   clearAllCaches,
   forceRefreshFromFirebase

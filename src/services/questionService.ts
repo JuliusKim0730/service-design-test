@@ -345,7 +345,7 @@ export const fullSync = async (): Promise<Question[]> => {
   console.log('🔄 양방향 완전 동기화 시작...');
   
   // 1단계: Firebase에서 최신 데이터 가져오기
-  const latestQuestions = await syncFirestoreToLocal();
+  await syncFirestoreToLocal();
   
   // 2단계: 혹시 로컬에만 있는 데이터가 있다면 Firebase에 업로드
   await syncLocalToFirestore();
