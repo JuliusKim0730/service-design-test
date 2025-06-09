@@ -192,6 +192,13 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   });
 
   const handleEditQuestion = (question: Question) => {
+    console.log('📝 문제 수정 시작 - 원본 데이터:', {
+      id: question.id,
+      subject: question.subject,
+      hintText: question.hintText || '(없음)',
+      hintImageUrl: question.hintImageUrl || '(없음)'
+    });
+    
     setEditingQuestion(question);
     setEditDialogOpen(true);
     
@@ -221,6 +228,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       setHintImagePreview('');
       setHintImageFile(null);
     }
+    
+    console.log('📝 editingQuestion 상태 설정 완료:', {
+      hintText: question.hintText || '(없음)',
+      hintImageUrl: question.hintImageUrl || '(없음)'
+    });
   };
 
   const handleSaveQuestion = async () => {
@@ -233,21 +245,28 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
 
     setSaving(true);
     
-    // 디버깅: 저장하려는 데이터 확인
-    console.log('💾 저장하려는 문제 데이터:', {
+    // 힌트 필드 정리: 빈 문자열을 undefined로 변환
+    const cleanedQuestion = {
       ...editingQuestion,
-      hintText: editingQuestion.hintText || '(없음)',
-      hintImageUrl: editingQuestion.hintImageUrl || '(없음)'
+      hintText: editingQuestion.hintText?.trim() || undefined,
+      hintImageUrl: editingQuestion.hintImageUrl?.trim() || undefined
+    };
+
+    // 디버깅: 저장하려는 데이터 확인
+    console.log('💾 저장하려는 문제 데이터 (정리 후):', {
+      ...cleanedQuestion,
+      hintText: cleanedQuestion.hintText || '(없음)',
+      hintImageUrl: cleanedQuestion.hintImageUrl || '(없음)'
     });
     
     try {
-      if (editingQuestion.id) {
+      if (cleanedQuestion.id) {
         // 수정
-        await updateQuestion(editingQuestion as Question);
+        await updateQuestion(cleanedQuestion as Question);
         showSnackbar('문제가 성공적으로 수정되었습니다.', 'success');
       } else {
         // 추가
-        await addQuestion(editingQuestion as Omit<Question, 'id'>);
+        await addQuestion(cleanedQuestion as Omit<Question, 'id'>);
         showSnackbar('새 문제가 성공적으로 추가되었습니다.', 'success');
       }
       
@@ -259,6 +278,7 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       setExplanationImageFile(null);
       setHintImagePreview('');
       setHintImageFile(null);
+      console.log('✅ 다이얼로그 닫기 및 상태 초기화 완료');
     } catch (error) {
       console.error('문제 저장 실패:', error);
       showSnackbar(isOnline ? '저장에 실패했습니다.' : '오프라인 상태에서 로컬에 저장되었습니다.', 
@@ -457,12 +477,15 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               variant="contained" 
               startIcon={<Add />}
               onClick={() => {
+                console.log('➕ 새 문제 추가 시작');
                 setEditingQuestion({
                   question: '',
                   options: ['', '', '', ''],
                   correctAnswer: 0,
                   explanation: '',
-                  subject: '서비스경험디자인기획설계'
+                  subject: '서비스경험디자인기획설계',
+                  hintText: '',
+                  hintImageUrl: ''
                 });
                 setEditDialogOpen(true);
                 setImagePreview('');
@@ -1117,7 +1140,17 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>취소</Button>
+          <Button onClick={() => {
+            console.log('❌ 문제 편집 취소');
+            setEditDialogOpen(false);
+            setEditingQuestion({});
+            setImagePreview('');
+            setImageFile(null);
+            setExplanationImagePreview('');
+            setExplanationImageFile(null);
+            setHintImagePreview('');
+            setHintImageFile(null);
+          }}>취소</Button>
           <Button 
             onClick={handleSaveQuestion}
             variant="contained"
