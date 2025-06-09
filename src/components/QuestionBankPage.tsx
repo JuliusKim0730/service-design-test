@@ -776,10 +776,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
             <TextField
               label="문제 내용"
               multiline
-              rows={3}
+              rows={4}
               value={editingQuestion.question || ''}
               onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
               fullWidth
+              placeholder="명확하고 이해하기 쉬운 문제를 작성하세요"
             />
 
             {/* 이미지 URL 입력 */}
@@ -905,10 +906,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
             <TextField
               label="해설"
               multiline
-              rows={3}
+              rows={5}
               value={editingQuestion.explanation || ''}
               onChange={(e) => setEditingQuestion({...editingQuestion, explanation: e.target.value})}
               fullWidth
+              placeholder="문제의 정답에 대한 자세한 해설을 입력하세요"
             />
 
             {/* 해설 이미지 URL 입력 */}
@@ -1002,11 +1004,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
             <TextField
               label="힌트 텍스트"
               multiline
-              rows={2}
+              rows={4}
               value={editingQuestion.hintText || ''}
               onChange={(e) => setEditingQuestion({...editingQuestion, hintText: e.target.value})}
               fullWidth
-              placeholder="학습자에게 도움이 될 힌트를 입력하세요"
+              placeholder="학습자가 문제를 해결하는 데 도움이 될 힌트를 자세히 입력하세요. 정답을 직접적으로 알려주지 말고, 사고의 방향을 제시해주세요."
             />
 
             {/* 힌트 이미지 URL 입력 */}
