@@ -268,6 +268,14 @@ export const addQuestion = async (question: Omit<Question, 'id'>): Promise<Quest
   const allQuestions = await getAllQuestions();
   const newId = allQuestions.length > 0 ? Math.max(...allQuestions.map(q => q.id)) + 1 : 1;
   const newQuestion: Question = { ...question, id: newId };
+  
+  // 디버깅: 추가하려는 문제 데이터 확인
+  console.log('➕ 새 문제 추가:', {
+    id: newQuestion.id,
+    subject: newQuestion.subject,
+    hintText: newQuestion.hintText || '(없음)',
+    hintImageUrl: newQuestion.hintImageUrl || '(없음)'
+  });
 
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지에만 저장합니다...');
@@ -295,6 +303,14 @@ export const addQuestion = async (question: Omit<Question, 'id'>): Promise<Quest
 
 // 문제 수정
 export const updateQuestion = async (question: Question): Promise<void> => {
+  // 디버깅: 수정하려는 문제 데이터 확인
+  console.log('✏️ 문제 수정:', {
+    id: question.id,
+    subject: question.subject,
+    hintText: question.hintText || '(없음)',
+    hintImageUrl: question.hintImageUrl || '(없음)'
+  });
+  
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지에서만 수정합니다...');
     const localQuestions = loadFromLocalStorage();

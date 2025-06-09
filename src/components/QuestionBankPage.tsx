@@ -233,6 +233,13 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
 
     setSaving(true);
     
+    // 디버깅: 저장하려는 데이터 확인
+    console.log('💾 저장하려는 문제 데이터:', {
+      ...editingQuestion,
+      hintText: editingQuestion.hintText || '(없음)',
+      hintImageUrl: editingQuestion.hintImageUrl || '(없음)'
+    });
+    
     try {
       if (editingQuestion.id) {
         // 수정
@@ -317,10 +324,12 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   const handleHintImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      console.log('📁 힌트 이미지 파일 업로드:', file.name);
       setHintImageFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64Data = e.target?.result as string;
+        console.log('🔄 힌트 이미지 base64 변환 완료:', base64Data.substring(0, 50) + '...');
         setHintImagePreview(base64Data);
         setEditingQuestion({...editingQuestion, hintImageUrl: base64Data});
       };
@@ -1006,7 +1015,10 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               multiline
               rows={4}
               value={editingQuestion.hintText || ''}
-              onChange={(e) => setEditingQuestion({...editingQuestion, hintText: e.target.value})}
+              onChange={(e) => {
+                console.log('💡 힌트 텍스트 입력:', e.target.value);
+                setEditingQuestion({...editingQuestion, hintText: e.target.value});
+              }}
               fullWidth
               placeholder="학습자가 문제를 해결하는 데 도움이 될 힌트를 자세히 입력하세요. 정답을 직접적으로 알려주지 말고, 사고의 방향을 제시해주세요."
             />
@@ -1017,6 +1029,7 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               value={editingQuestion.hintImageUrl?.startsWith('data:') ? '' : editingQuestion.hintImageUrl || ''}
               onChange={(e) => {
                 const url = e.target.value;
+                console.log('🖼️ 힌트 이미지 URL 입력:', url);
                 setEditingQuestion({...editingQuestion, hintImageUrl: url});
                 if (url && !url.startsWith('data:')) {
                   setHintImagePreview('');
