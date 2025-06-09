@@ -65,6 +65,26 @@ const loadFromLocalStorage = (): Question[] => {
   }
 };
 
+// 로컬 스토리지 강제 초기화 (개발용)
+export const forceInitializeLocalStorage = (): void => {
+  console.log('🔄 로컬 스토리지 강제 초기화');
+  localStorage.removeItem(LOCAL_STORAGE_KEY);
+  // 힌트 필드를 포함한 샘플 데이터 처리
+  const processedSampleQuestions = sampleQuestions.map(q => ({
+    ...q,
+    hintText: q.hintText || undefined,
+    hintImageUrl: q.hintImageUrl || undefined
+  }));
+  saveToLocalStorage(processedSampleQuestions);
+  console.log('✅ 새로운 샘플 데이터로 초기화 완료');
+};
+
+// 개발자 도구에서 사용할 수 있도록 전역 함수로 노출
+if (process.env.NODE_ENV === 'development') {
+  (window as any).initHintData = forceInitializeLocalStorage;
+  console.log('🛠️ 개발 모드: window.initHintData() 함수를 사용해서 힌트 데이터를 초기화할 수 있습니다.');
+}
+
 // Firestore에 초기 데이터 설정
 export const initializeFirestoreData = async (): Promise<void> => {
   if (!isFirebaseAvailable()) {

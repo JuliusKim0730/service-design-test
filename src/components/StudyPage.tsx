@@ -288,24 +288,45 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
           </RadioGroup>
         </FormControl>
 
-        {/* 힌트 버튼 */}
-        {!showAnswer && (currentQuestion.hintText || currentQuestion.hintImageUrl) && (
-          <Box textAlign="center" mt={3}>
+        {/* 힌트 버튼과 답안 확인 버튼 */}
+        {!showAnswer && (
+          <Box display="flex" justifyContent="center" alignItems="center" gap={2} mt={3}>
+            {/* 힌트 버튼 */}
+            {(currentQuestion.hintText || currentQuestion.hintImageUrl) && (
+              <Button
+                variant="outlined"
+                startIcon={<LightbulbIcon />}
+                endIcon={showHint ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                onClick={handleToggleHint}
+                sx={{
+                  borderColor: '#FFC107',
+                  color: '#FFC107',
+                  px: 3,
+                  py: 1.5,
+                  '&:hover': {
+                    borderColor: '#FFB300',
+                    backgroundColor: 'rgba(255, 193, 7, 0.04)'
+                  }
+                }}
+              >
+                힌트 {showHint ? '숨기기' : '보기'}
+              </Button>
+            )}
+            
+            {/* 답안 확인 버튼 */}
             <Button
-              variant="outlined"
-              startIcon={<LightbulbIcon />}
-              endIcon={showHint ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              onClick={handleToggleHint}
+              variant="contained"
+              size="large"
+              onClick={handleShowAnswer}
+              disabled={selectedAnswer === null}
               sx={{
-                borderColor: '#FFC107',
-                color: '#FFC107',
-                '&:hover': {
-                  borderColor: '#FFB300',
-                  backgroundColor: 'rgba(255, 193, 7, 0.04)'
-                }
+                backgroundColor: '#FF9800',
+                '&:hover': { backgroundColor: '#F57C00' },
+                px: 4,
+                py: 1.5
               }}
             >
-              힌트 {showHint ? '숨기기' : '보기'}
+              답안 확인하기
             </Button>
           </Box>
         )}
@@ -343,26 +364,6 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
             </CardContent>
           </Card>
         </Collapse>
-
-        {/* 답안 확인 버튼 */}
-        {!showAnswer && (
-          <Box textAlign="center" mt={3}>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleShowAnswer}
-              disabled={selectedAnswer === null}
-              sx={{
-                backgroundColor: '#FF9800',
-                '&:hover': { backgroundColor: '#F57C00' },
-                px: 4,
-                py: 1.5
-              }}
-            >
-              답안 확인하기
-            </Button>
-          </Box>
-        )}
 
         {/* 정답 및 해설 */}
         {showAnswer && (

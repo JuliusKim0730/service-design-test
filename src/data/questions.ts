@@ -14,7 +14,8 @@ export const sampleQuestions: Question[] = [
       '디자인은 다양한 분야와 디자이너 등이 참여하는 통합적 활동을 하는 것이다.'
     ],
     correctAnswer: 0,
-    explanation: '심미적, 창조적 측면의 예술적 특성도 디자인 개념에 일부 속하지만 가장 중요하다고 할 수는 없습니다.'
+    explanation: '심미적, 창조적 측면의 예술적 특성도 디자인 개념에 일부 속하지만 가장 중요하다고 할 수는 없습니다.',
+    hintText: '디자인의 핵심은 무엇일까요? 예술적 특성보다 더 중요한 것을 생각해보세요. 디자인은 문제를 해결하는 과정이라는 점을 고려해보세요.'
   },
   {
     id: 2,
@@ -40,7 +41,8 @@ export const sampleQuestions: Question[] = [
       '디자인씽킹은 인간의 감정과 디자이너를 출발점으로 디자인 과정을 구체적으로 실현하는데 초점을 둔다.'
     ],
     correctAnswer: 1,
-    explanation: '솔루션 중심성 대한 설명은 감정적이다.'
+    explanation: '솔루션 중심성 대한 설명은 감정적이다.',
+    hintText: '디자인씽킹은 사용자 중심적 접근 방법입니다. 솔루션 중심이 아닌 무엇을 중심으로 하는지 생각해보세요.'
   },
   {
     id: 4,
@@ -92,7 +94,9 @@ export const sampleQuestions: Question[] = [
       '빠른 개발 속도를 위해 단순화한다'
     ],
     correctAnswer: 1,
-    explanation: '사용자 중심 설계(UCD)는 사용자의 요구사항, 행동 패턴, 목표를 깊이 이해하고 이를 설계에 반영하는 것이 핵심입니다.'
+    explanation: '사용자 중심 설계(UCD)는 사용자의 요구사항, 행동 패턴, 목표를 깊이 이해하고 이를 설계에 반영하는 것이 핵심입니다.',
+    hintText: 'UCD의 "U"는 무엇을 의미할까요? 사용자(User)를 중심으로 한다는 것이 핵심입니다.',
+    hintImageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDIwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRkZGRUY3Ii8+Cjx0ZXh0IHg9IjEwMCIgeT0iMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNGRjhGMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZm9udC13ZWlnaHQ9ImJvbGQiPvCfkYUgVXNlcjwvdGV4dD4KPGNPCLE1cyBoZWlnaHQ9IjIwIiB3aWR0aD0iMjAiIGZpbGw9IiNGRkMxMDciIHJ4PSIxMCIvPgo8dGV4dCB4PSIxMDAiIHk9IjcwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY4RjAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiPkNlbnRlcmVkIERlc2lnbjwvdGV4dD4KPC9zdmc+'
   },
   {
     id: 8,
