@@ -15,6 +15,8 @@ export interface Question {
   explanation: string;
   imageUrl?: string; // 문제에 포함될 이미지 URL (선택사항)
   explanationImageUrl?: string; // 해설에 포함될 이미지 URL (선택사항)
+  hintText?: string; // 힌트 텍스트 (선택사항)
+  hintImageUrl?: string; // 힌트 이미지 URL (선택사항)
 }
 
 // 문제 결과 타입

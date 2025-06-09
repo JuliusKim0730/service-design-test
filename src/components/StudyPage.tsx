@@ -15,14 +15,20 @@ import {
   LinearProgress,
   Chip,
   Paper,
-  Divider
+  Divider,
+  Collapse,
+  Card,
+  CardContent
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   NavigateNext as NavigateNextIcon,
   NavigateBefore as NavigateBeforeIcon,
-  Stop as StopIcon
+  Stop as StopIcon,
+  Lightbulb as LightbulbIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { subscribeToQuestions } from '../services/questionService';
@@ -38,6 +44,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [showAnswer, setShowAnswer] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
   const [showStopDialog, setShowStopDialog] = useState(false);
+  const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
     // Firebase에서 실시간으로 모든 문제를 구독하여 가져오기
@@ -83,6 +90,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
       setShowAnswer(false);
+      setShowHint(false);
     }
   };
 
@@ -91,7 +99,12 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setCurrentQuestionIndex(prev => prev - 1);
       setSelectedAnswer(null);
       setShowAnswer(false);
+      setShowHint(false);
     }
+  };
+
+  const handleToggleHint = () => {
+    setShowHint(prev => !prev);
   };
 
   const handleStopStudy = () => {
@@ -274,6 +287,62 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
             ))}
           </RadioGroup>
         </FormControl>
+
+        {/* 힌트 버튼 */}
+        {!showAnswer && (currentQuestion.hintText || currentQuestion.hintImageUrl) && (
+          <Box textAlign="center" mt={3}>
+            <Button
+              variant="outlined"
+              startIcon={<LightbulbIcon />}
+              endIcon={showHint ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              onClick={handleToggleHint}
+              sx={{
+                borderColor: '#FFC107',
+                color: '#FFC107',
+                '&:hover': {
+                  borderColor: '#FFB300',
+                  backgroundColor: 'rgba(255, 193, 7, 0.04)'
+                }
+              }}
+            >
+              힌트 {showHint ? '숨기기' : '보기'}
+            </Button>
+          </Box>
+        )}
+
+        {/* 힌트 영역 */}
+        <Collapse in={showHint}>
+          <Card sx={{ mt: 3, backgroundColor: '#FFFEF7', border: '1px solid #FFC107' }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={1} mb={2}>
+                <LightbulbIcon sx={{ color: '#FFC107' }} />
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#FF8F00' }}>
+                  💡 힌트
+                </Typography>
+              </Box>
+              
+              {currentQuestion.hintText && (
+                <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.6 }}>
+                  {currentQuestion.hintText}
+                </Typography>
+              )}
+              
+              {currentQuestion.hintImageUrl && (
+                <Box sx={{ textAlign: 'center' }}>
+                  <img 
+                    src={currentQuestion.hintImageUrl} 
+                    alt="힌트 이미지" 
+                    style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                    onError={(e) => {
+                      console.error('힌트 이미지 로드 실패:', currentQuestion.hintImageUrl);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Collapse>
 
         {/* 답안 확인 버튼 */}
         {!showAnswer && (

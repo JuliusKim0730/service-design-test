@@ -41,7 +41,8 @@ import {
   Search,
   Sync,
   CloudOff,
-  Refresh
+  Refresh,
+  Lightbulb as LightbulbIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { 
@@ -74,6 +75,9 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [explanationImageFile, setExplanationImageFile] = useState<File | null>(null);
   const [explanationImagePreview, setExplanationImagePreview] = useState<string>('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [hintImageFile, setHintImageFile] = useState<File | null>(null);
+  const [hintImagePreview, setHintImagePreview] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -208,6 +212,15 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       setExplanationImagePreview('');
       setExplanationImageFile(null);
     }
+    
+    // 힌트 이미지도 동일하게 처리
+    if (question.hintImageUrl && question.hintImageUrl.startsWith('data:')) {
+      setHintImagePreview(question.hintImageUrl);
+      setHintImageFile(null);
+    } else {
+      setHintImagePreview('');
+      setHintImageFile(null);
+    }
   };
 
   const handleSaveQuestion = async () => {
@@ -237,6 +250,8 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       setImageFile(null);
       setExplanationImagePreview('');
       setExplanationImageFile(null);
+      setHintImagePreview('');
+      setHintImageFile(null);
     } catch (error) {
       console.error('문제 저장 실패:', error);
       showSnackbar(isOnline ? '저장에 실패했습니다.' : '오프라인 상태에서 로컬에 저장되었습니다.', 
@@ -297,6 +312,26 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
     setExplanationImageFile(null);
     setExplanationImagePreview('');
     setEditingQuestion({...editingQuestion, explanationImageUrl: ''});
+  };
+
+  const handleHintImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setHintImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Data = e.target?.result as string;
+        setHintImagePreview(base64Data);
+        setEditingQuestion({...editingQuestion, hintImageUrl: base64Data});
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeleteHintImage = () => {
+    setHintImageFile(null);
+    setHintImagePreview('');
+    setEditingQuestion({...editingQuestion, hintImageUrl: ''});
   };
 
   const getSubjectColor = (subject: Subject) => {
@@ -425,6 +460,8 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
                 setImageFile(null);
                 setExplanationImagePreview('');
                 setExplanationImageFile(null);
+                setHintImagePreview('');
+                setHintImageFile(null);
               }}
               sx={{ ml: 'auto' }}
             >
@@ -530,6 +567,15 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
                             fontSize: '1.2rem'
                           }} 
                           titleAccess="해설 이미지 있음"
+                        />
+                      )}
+                      {(question.hintText || question.hintImageUrl) && (
+                        <LightbulbIcon 
+                          sx={{ 
+                            color: '#FFC107', 
+                            fontSize: '1.2rem'
+                          }} 
+                          titleAccess="힌트 있음"
                         />
                       )}
                     </Box>
@@ -652,6 +698,45 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
                       border: '1px solid #e0e0e0'
                     }}
                   />
+                </Box>
+              )}
+
+              {/* 힌트 정보 표시 */}
+              {(selectedQuestion.hintText || selectedQuestion.hintImageUrl) && (
+                <Box sx={{ 
+                  mt: 3,
+                  p: 2,
+                  backgroundColor: '#FFFEF7',
+                  border: '1px solid #FFC107',
+                  borderRadius: 1
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: '#FF8F00' }}>
+                    💡 힌트:
+                  </Typography>
+                  
+                  {selectedQuestion.hintText && (
+                    <Typography variant="body2" sx={{ mb: 2, lineHeight: 1.6 }}>
+                      {selectedQuestion.hintText}
+                    </Typography>
+                  )}
+                  
+                  {selectedQuestion.hintImageUrl && (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary' }}>
+                        힌트 이미지
+                      </Typography>
+                      <img 
+                        src={selectedQuestion.hintImageUrl} 
+                        alt="힌트 이미지" 
+                        style={{ 
+                          maxWidth: '100%', 
+                          height: 'auto',
+                          borderRadius: 8,
+                          border: '1px solid #e0e0e0'
+                        }}
+                      />
+                    </Box>
+                  )}
                 </Box>
               )}
             </DialogContent>
@@ -904,6 +989,112 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
                     hidden
                     accept="image/*"
                     onChange={handleExplanationImageUpload}
+                  />
+                </Button>
+              )}
+            </Box>
+
+            {/* 힌트 섹션 */}
+            <Typography variant="h6" sx={{ mt: 3, mb: 2, color: '#FFC107', fontWeight: 'bold' }}>
+              💡 힌트 (선택사항)
+            </Typography>
+            
+            <TextField
+              label="힌트 텍스트"
+              multiline
+              rows={2}
+              value={editingQuestion.hintText || ''}
+              onChange={(e) => setEditingQuestion({...editingQuestion, hintText: e.target.value})}
+              fullWidth
+              placeholder="학습자에게 도움이 될 힌트를 입력하세요"
+            />
+
+            {/* 힌트 이미지 URL 입력 */}
+            <TextField
+              label="힌트 이미지 URL (선택사항)"
+              value={editingQuestion.hintImageUrl?.startsWith('data:') ? '' : editingQuestion.hintImageUrl || ''}
+              onChange={(e) => {
+                const url = e.target.value;
+                setEditingQuestion({...editingQuestion, hintImageUrl: url});
+                if (url && !url.startsWith('data:')) {
+                  setHintImagePreview('');
+                  setHintImageFile(null);
+                }
+              }}
+              fullWidth
+              placeholder="https://example.com/hint-image.jpg"
+            />
+
+            {/* 힌트 이미지 미리보기 */}
+            {editingQuestion.hintImageUrl && !editingQuestion.hintImageUrl.startsWith('data:') && (
+              <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1, p: 2, textAlign: 'center' }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>힌트 이미지 미리보기 (URL)</Typography>
+                <img 
+                  src={editingQuestion.hintImageUrl} 
+                  alt="힌트 이미지 미리보기" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: 200, 
+                    borderRadius: 4 
+                  }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </Box>
+            )}
+
+            {/* 힌트 이미지 업로드 섹션 */}
+            <Box sx={{ border: '1px dashed #FFC107', borderRadius: 1, p: 2, backgroundColor: '#FFFEF7' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: '#FF8F00' }}>또는 힌트 이미지 파일 업로드</Typography>
+              
+              {(hintImagePreview || (editingQuestion.hintImageUrl && editingQuestion.hintImageUrl.startsWith('data:'))) ? (
+                <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                  <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                    업로드된 힌트 이미지
+                  </Typography>
+                  <img 
+                    src={hintImagePreview || editingQuestion.hintImageUrl || ''} 
+                    alt="업로드된 힌트 이미지" 
+                    style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 4 }}
+                  />
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={handleDeleteHintImage}
+                    sx={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 4,
+                      backgroundColor: 'rgba(255,255,255,0.8)'
+                    }}
+                  >
+                    <Delete />
+                  </IconButton>
+                </Box>
+              ) : (
+                <Button
+                  variant="outlined"
+                  startIcon={<Image />}
+                  component="label"
+                  fullWidth
+                  sx={{ 
+                    py: 2,
+                    borderColor: '#FFC107',
+                    color: '#FFC107',
+                    '&:hover': {
+                      borderColor: '#FFB300',
+                      backgroundColor: 'rgba(255, 193, 7, 0.04)'
+                    }
+                  }}
+                >
+                  힌트 이미지 파일 업로드
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleHintImageUpload}
                   />
                 </Button>
               )}

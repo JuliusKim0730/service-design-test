@@ -71,9 +71,15 @@ export const initializeFirestoreData = async (): Promise<void> => {
     console.warn('Firebase를 사용할 수 없습니다. 로컬 스토리지만 사용됩니다.');
     // 로컬 스토리지에 초기 데이터가 없으면 추가 (개발 환경에서만)
     const localQuestions = loadFromLocalStorage();
-    if (localQuestions.length === 0 && process.env.NODE_ENV === 'development') {
-      console.log('🛠️ 개발 환경: 로컬 스토리지에 샘플 데이터 추가');
-      saveToLocalStorage(sampleQuestions);
+    if (localQuestions.length === 0) {
+      console.log('🛠️ Firebase 없이 로컬 스토리지에 샘플 데이터 추가');
+      // 힌트 필드를 포함한 샘플 데이터 처리
+      const processedSampleQuestions = sampleQuestions.map(q => ({
+        ...q,
+        hintText: q.hintText || undefined,
+        hintImageUrl: q.hintImageUrl || undefined
+      }));
+      saveToLocalStorage(processedSampleQuestions);
     }
     return;
   }
@@ -88,11 +94,17 @@ export const initializeFirestoreData = async (): Promise<void> => {
       // 개발 환경에서만 샘플 데이터 추가
       if (process.env.NODE_ENV === 'development') {
         console.log('🛠️ 개발 환경: Firebase에 샘플 데이터 추가');
-        for (const question of sampleQuestions) {
+        // 힌트 필드를 포함한 샘플 데이터 처리
+        const processedSampleQuestions = sampleQuestions.map(q => ({
+          ...q,
+          hintText: q.hintText || undefined,
+          hintImageUrl: q.hintImageUrl || undefined
+        }));
+        for (const question of processedSampleQuestions) {
           await setDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), question);
         }
         console.log('초기 데이터 추가 완료');
-        saveToLocalStorage(sampleQuestions);
+        saveToLocalStorage(processedSampleQuestions);
       }
     } else {
       console.log('🔥 Firebase에서 기존 데이터 발견:', questionsSnapshot.size, '개 문제');
@@ -101,9 +113,15 @@ export const initializeFirestoreData = async (): Promise<void> => {
     console.error('Firestore 초기화 실패:', error);
     // 로컬 스토리지에 초기 데이터가 없으면 추가 (개발 환경에서만)
     const localQuestions = loadFromLocalStorage();
-    if (localQuestions.length === 0 && process.env.NODE_ENV === 'development') {
-      console.log('🛠️ 개발 환경: 오류 시 로컬 스토리지에 샘플 데이터 추가');
-      saveToLocalStorage(sampleQuestions);
+    if (localQuestions.length === 0) {
+      console.log('🛠️ 오류 시 로컬 스토리지에 샘플 데이터 추가');
+      // 힌트 필드를 포함한 샘플 데이터 처리
+      const processedSampleQuestions = sampleQuestions.map(q => ({
+        ...q,
+        hintText: q.hintText || undefined,
+        hintImageUrl: q.hintImageUrl || undefined
+      }));
+      saveToLocalStorage(processedSampleQuestions);
     }
   }
 };
@@ -157,8 +175,14 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지 데이터를 사용합니다...');
     const localQuestions = loadFromLocalStorage();
-    console.log('📁 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
-    callback(localQuestions);
+    // 힌트 필드 처리
+    const processedLocalQuestions = localQuestions.map(q => ({
+      ...q,
+      hintText: q.hintText || undefined,
+      hintImageUrl: q.hintImageUrl || undefined
+    }));
+    console.log('📁 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
+    callback(processedLocalQuestions);
     return () => {}; // 빈 unsubscribe 함수 반환
   }
 
@@ -169,7 +193,13 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
       const questions: Question[] = [];
       snapshot.forEach((doc) => {
         const questionData = doc.data() as Question;
-        questions.push(questionData);
+        // 힌트 필드 처리 - 기존 데이터에 없으면 undefined로 설정
+        const processedQuestion: Question = {
+          ...questionData,
+          hintText: questionData.hintText || undefined,
+          hintImageUrl: questionData.hintImageUrl || undefined
+        };
+        questions.push(processedQuestion);
       });
       
       console.log('🔥 Firebase에서 로드된 문제 수:', questions.length);
@@ -178,6 +208,10 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
       const questionsWithImages = questions.filter(q => q.imageUrl);
       console.log('📷 이미지가 있는 문제 수:', questionsWithImages.length);
       
+      // 힌트가 있는 문제 확인
+      const questionsWithHints = questions.filter(q => q.hintText || q.hintImageUrl);
+      console.log('💡 힌트가 있는 문제 수:', questionsWithHints.length);
+      
       // 로컬 스토리지에도 백업
       saveToLocalStorage(questions);
       callback(questions);
@@ -185,15 +219,25 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
       console.error('실시간 데이터 구독 실패:', error);
       // 오류 시 로컬 스토리지에서 불러오기
       const localQuestions = loadFromLocalStorage();
-      console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
-      callback(localQuestions);
+      const processedLocalQuestions = localQuestions.map(q => ({
+        ...q,
+        hintText: q.hintText || undefined,
+        hintImageUrl: q.hintImageUrl || undefined
+      }));
+      console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
+      callback(processedLocalQuestions);
     });
   } catch (error) {
     console.error('실시간 구독 설정 실패:', error);
     // 오류 시 로컬 스토리지에서 불러오기
     const localQuestions = loadFromLocalStorage();
-    console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', localQuestions.length);
-    callback(localQuestions);
+    const processedLocalQuestions = localQuestions.map(q => ({
+      ...q,
+      hintText: q.hintText || undefined,
+      hintImageUrl: q.hintImageUrl || undefined
+    }));
+    console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
+    callback(processedLocalQuestions);
     return () => {}; // 빈 unsubscribe 함수 반환
   }
 };
