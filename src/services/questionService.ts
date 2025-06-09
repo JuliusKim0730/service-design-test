@@ -538,4 +538,103 @@ export const forceRefreshFromFirebase = async (): Promise<Question[]> => {
     console.error('Firebase에서 강제 새로고침 실패:', error);
     return [];
   }
-}; 
+};
+
+// 데이터베이스 마이그레이션: 기존 문제들에 힌트 필드 추가
+export const migrateQuestionsWithHints = async (): Promise<void> => {
+  if (!isFirebaseAvailable()) {
+    console.warn('Firebase를 사용할 수 없습니다. 마이그레이션을 수행할 수 없습니다.');
+    return;
+  }
+
+  try {
+    console.log('🔄 데이터베이스 마이그레이션 시작: 힌트 필드 추가');
+    
+    // 모든 기존 문제 가져오기
+    const questionsSnapshot = await getDocs(collection(db!, QUESTIONS_COLLECTION));
+    let migratedCount = 0;
+    
+    for (const docSnapshot of questionsSnapshot.docs) {
+      const questionData = docSnapshot.data() as Question;
+      
+      // 힌트 필드가 없는 문제만 업데이트
+      if (!questionData.hasOwnProperty('hintText') || !questionData.hasOwnProperty('hintImageUrl')) {
+        const updatedQuestion: Question = {
+          ...questionData,
+          hintText: questionData.hintText || undefined,
+          hintImageUrl: questionData.hintImageUrl || undefined
+        };
+        
+        await updateDoc(doc(db!, QUESTIONS_COLLECTION, docSnapshot.id), updatedQuestion);
+        migratedCount++;
+        
+        console.log(`✅ 문제 ${questionData.id} 마이그레이션 완료`);
+      }
+    }
+    
+    console.log(`🎉 마이그레이션 완료: ${migratedCount}개 문제 업데이트`);
+    
+    // 샘플 데이터의 힌트가 있는 문제들을 업데이트
+    await updateSampleQuestionsWithHints();
+    
+  } catch (error) {
+    console.error('❌ 마이그레이션 실패:', error);
+    throw error;
+  }
+};
+
+// 샘플 데이터의 힌트를 Firebase에 적용
+export const updateSampleQuestionsWithHints = async (): Promise<void> => {
+  if (!isFirebaseAvailable()) {
+    console.warn('Firebase를 사용할 수 없습니다.');
+    return;
+  }
+
+  try {
+    console.log('📝 샘플 데이터의 힌트를 Firebase에 적용 중...');
+    
+    // 힌트가 있는 샘플 문제들
+    const hintsToAdd = [
+      {
+        id: 1,
+        hintText: '디자인의 핵심은 무엇일까요? 예술적 특성보다 더 중요한 것을 생각해보세요. 디자인은 문제를 해결하는 과정이라는 점을 고려해보세요.'
+      },
+      {
+        id: 3,
+        hintText: '디자인씽킹은 사용자 중심적 접근 방법입니다. 솔루션 중심이 아닌 무엇을 중심으로 하는지 생각해보세요.'
+      },
+      {
+        id: 7,
+        hintText: 'UCD의 "U"는 무엇을 의미할까요? 사용자(User)를 중심으로 한다는 것이 핵심입니다.',
+        hintImageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDIwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRkZGRUY3Ii8+Cjx0ZXh0IHg9IjEwMCIgeT0iMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNGRjhGMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZm9udC13ZWlnaHQ9ImJvbGQiPvCfkYUgVXNlcjwvdGV4dD4KPGNPCLE1cyBoZWlnaHQ9IjIwIiB3aWR0aD0iMjAiIGZpbGw9IiNGRkMxMDciIHJ4PSIxMCIvPgo8dGV4dCB4PSIxMDAiIHk9IjcwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY4RjAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiPkNlbnRlcmVkIERlc2lnbjwvdGV4dD4KPC9zdmc+'
+      }
+    ];
+    
+    for (const hintData of hintsToAdd) {
+      try {
+        const docRef = doc(db!, QUESTIONS_COLLECTION, hintData.id.toString());
+        await updateDoc(docRef, {
+          hintText: hintData.hintText,
+          hintImageUrl: hintData.hintImageUrl || undefined
+        });
+        console.log(`✅ 문제 ${hintData.id}에 힌트 추가 완료`);
+      } catch (error) {
+        console.error(`❌ 문제 ${hintData.id} 힌트 추가 실패:`, error);
+      }
+    }
+    
+    console.log('🎉 샘플 힌트 적용 완료');
+    
+  } catch (error) {
+    console.error('❌ 샘플 힌트 적용 실패:', error);
+  }
+};
+
+// 개발자 도구에서 사용할 수 있도록 전역 함수로 노출
+if (process.env.NODE_ENV === 'development') {
+  (window as any).migrateDB = migrateQuestionsWithHints;
+  (window as any).addSampleHints = updateSampleQuestionsWithHints;
+  console.log('🛠️ 개발 모드: 다음 함수들을 사용할 수 있습니다:');
+  console.log('- window.migrateDB() : 데이터베이스 마이그레이션');
+  console.log('- window.addSampleHints() : 샘플 힌트 추가');
+} 

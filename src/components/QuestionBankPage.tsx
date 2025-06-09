@@ -30,7 +30,11 @@ import {
   InputAdornment,
   CircularProgress,
   Alert,
-  Snackbar
+  Snackbar,
+  List,
+  ListItem,
+  ListItemText,
+  Divider
 } from '@mui/material';
 import {
   ArrowBack,
@@ -42,7 +46,9 @@ import {
   Sync,
   CloudOff,
   Refresh,
-  Lightbulb as LightbulbIcon
+  Lightbulb as LightbulbIcon,
+  CloudUpload,
+  WarningAmber
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { 
@@ -53,7 +59,8 @@ import {
   initializeFirestoreData,
   fullSync,
   clearAllCaches,
-  forceRefreshFromFirebase
+  forceRefreshFromFirebase,
+  migrateQuestionsWithHints
 } from '../services/questionService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -84,6 +91,7 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
   const [snackbar, setSnackbar] = useState<{open: boolean; message: string; severity: 'success' | 'error' | 'warning'}>({
     open: false, message: '', severity: 'success'
   });
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const subjects: Subject[] = [
     '서비스경험디자인기획설계',
@@ -129,6 +137,25 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       clearAllCaches();
     }
   }, []);
+
+  const handleMigration = async () => {
+    if (!window.confirm('데이터베이스 마이그레이션을 실행하시겠습니까?\n기존 모든 문제에 힌트 필드가 추가되고, 샘플 힌트 데이터가 적용됩니다.')) {
+      return;
+    }
+
+    setIsMigrating(true);
+    try {
+      await migrateQuestionsWithHints();
+      alert('✅ 마이그레이션이 완료되었습니다! 페이지를 새로고침해주세요.');
+      // 문제 목록 새로고침
+      fetchQuestions();
+    } catch (error) {
+      console.error('마이그레이션 실패:', error);
+      alert('❌ 마이그레이션 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   // 네트워크 상태 감지
   useEffect(() => {
@@ -397,6 +424,45 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
         </Alert>
       )}
 
+      {/* 마이그레이션 버튼 추가 */}
+      <Box sx={{ mb: 3, p: 2, backgroundColor: '#fff3cd', borderRadius: 1, border: '1px solid #ffeaa7' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <WarningAmber sx={{ color: '#856404', mr: 1 }} />
+          <Typography variant="h6" color="#856404">
+            데이터베이스 관리
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="#856404" sx={{ mb: 2 }}>
+          기존 문제들에 힌트 필드가 없다면 마이그레이션을 실행해주세요.
+        </Typography>
+        <Button
+          variant="contained"
+          color="warning"
+          startIcon={<CloudUpload />}
+          onClick={handleMigration}
+          disabled={isMigrating}
+          sx={{ backgroundColor: '#ffc107', '&:hover': { backgroundColor: '#e0a800' } }}
+        >
+          {isMigrating ? '마이그레이션 중...' : '힌트 필드 마이그레이션 실행'}
+        </Button>
+      </Box>
+
+      <Divider sx={{ mb: 3 }} />
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h6">
+          전체 문제: {questions.length}개
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => handleOpenDialog()}
+          sx={{ backgroundColor: '#1976d2' }}
+        >
+          새 문제 추가
+        </Button>
+      </Box>
+
       {/* 헤더 */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -471,35 +537,6 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
             }}
             sx={{ minWidth: 300 }}
           />
-          
-                    {isAdmin() && (
-            <Button 
-              variant="contained" 
-              startIcon={<Add />}
-              onClick={() => {
-                console.log('➕ 새 문제 추가 시작');
-                setEditingQuestion({
-                  question: '',
-                  options: ['', '', '', ''],
-                  correctAnswer: 0,
-                  explanation: '',
-                  subject: '서비스경험디자인기획설계',
-                  hintText: '',
-                  hintImageUrl: ''
-                });
-                setEditDialogOpen(true);
-                setImagePreview('');
-                setImageFile(null);
-                setExplanationImagePreview('');
-                setExplanationImageFile(null);
-                setHintImagePreview('');
-                setHintImageFile(null);
-              }}
-              sx={{ ml: 'auto' }}
-            >
-              새 문제 추가
-            </Button>
-          )}
         </Box>
 
         {/* 통계 카드 */}
