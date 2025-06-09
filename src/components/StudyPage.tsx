@@ -74,6 +74,19 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const currentQuestion = questions[currentQuestionIndex];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
+  // 디버깅: 현재 문제의 힌트 데이터 확인
+  React.useEffect(() => {
+    if (currentQuestion) {
+      console.log('🔍 현재 문제 데이터:', {
+        id: currentQuestion.id,
+        subject: currentQuestion.subject,
+        hintText: currentQuestion.hintText || '(없음)',
+        hintImageUrl: currentQuestion.hintImageUrl || '(없음)',
+        hasHint: !!(currentQuestion.hintText || currentQuestion.hintImageUrl)
+      });
+    }
+  }, [currentQuestion]);
+
   const handleAnswerSelect = (answerIndex: number) => {
     setSelectedAnswer(answerIndex);
   };
@@ -292,26 +305,26 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
         {!showAnswer && (
           <Box display="flex" justifyContent="center" alignItems="center" gap={2} mt={3}>
             {/* 힌트 버튼 */}
-            {(currentQuestion.hintText || currentQuestion.hintImageUrl) && (
-              <Button
-                variant="outlined"
-                startIcon={<LightbulbIcon />}
-                endIcon={showHint ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                onClick={handleToggleHint}
-                sx={{
-                  borderColor: '#FFC107',
-                  color: '#FFC107',
-                  px: 3,
-                  py: 1.5,
-                  '&:hover': {
-                    borderColor: '#FFB300',
-                    backgroundColor: 'rgba(255, 193, 7, 0.04)'
-                  }
-                }}
-              >
-                힌트 {showHint ? '숨기기' : '보기'}
-              </Button>
-            )}
+            <Button
+              variant="outlined"
+              startIcon={<LightbulbIcon />}
+              endIcon={showHint ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              onClick={handleToggleHint}
+              disabled={!(currentQuestion.hintText || currentQuestion.hintImageUrl)}
+              sx={{
+                borderColor: (currentQuestion.hintText || currentQuestion.hintImageUrl) ? '#FFC107' : '#E0E0E0',
+                color: (currentQuestion.hintText || currentQuestion.hintImageUrl) ? '#FFC107' : '#9E9E9E',
+                px: 3,
+                py: 1.5,
+                '&:hover': {
+                  borderColor: (currentQuestion.hintText || currentQuestion.hintImageUrl) ? '#FFB300' : '#E0E0E0',
+                  backgroundColor: (currentQuestion.hintText || currentQuestion.hintImageUrl) ? 'rgba(255, 193, 7, 0.04)' : 'transparent'
+                }
+              }}
+            >
+              힌트 {showHint ? '숨기기' : '보기'}
+              {!(currentQuestion.hintText || currentQuestion.hintImageUrl) && ' (없음)'}
+            </Button>
             
             {/* 답안 확인 버튼 */}
             <Button
@@ -342,13 +355,17 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
                 </Typography>
               </Box>
               
-              {currentQuestion.hintText && (
+              {currentQuestion.hintText ? (
                 <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.6 }}>
                   {currentQuestion.hintText}
                 </Typography>
+              ) : (
+                <Typography variant="body2" sx={{ mb: 2, color: '#9E9E9E', fontStyle: 'italic' }}>
+                  이 문제에는 텍스트 힌트가 없습니다.
+                </Typography>
               )}
               
-              {currentQuestion.hintImageUrl && (
+              {currentQuestion.hintImageUrl ? (
                 <Box sx={{ textAlign: 'center' }}>
                   <img 
                     src={currentQuestion.hintImageUrl} 
@@ -360,6 +377,17 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
                     }}
                   />
                 </Box>
+              ) : (
+                <Typography variant="body2" sx={{ color: '#9E9E9E', fontStyle: 'italic', textAlign: 'center' }}>
+                  이 문제에는 이미지 힌트가 없습니다.
+                </Typography>
+              )}
+              
+              {!(currentQuestion.hintText || currentQuestion.hintImageUrl) && (
+                <Typography variant="body1" sx={{ textAlign: 'center', color: '#FF8F00', fontWeight: 'bold' }}>
+                  이 문제에는 아직 힌트가 등록되지 않았습니다.<br />
+                  문제은행에서 힌트를 추가할 수 있습니다.
+                </Typography>
               )}
             </CardContent>
           </Card>
