@@ -286,7 +286,23 @@ export const addQuestion = async (question: Omit<Question, 'id'>): Promise<Quest
   }
 
   try {
-    await setDoc(doc(db!, QUESTIONS_COLLECTION, newId.toString()), newQuestion);
+    // undefined 값들을 빈 문자열로 변환하여 안전한 데이터 준비
+    const safeQuestion = {
+      ...newQuestion,
+      imageUrl: newQuestion.imageUrl || '',
+      explanationImageUrl: newQuestion.explanationImageUrl || '',
+      hintText: newQuestion.hintText || '',
+      hintImageUrl: newQuestion.hintImageUrl || ''
+    };
+    
+    console.log('🔄 Firebase에 추가할 안전한 데이터:', {
+      id: safeQuestion.id,
+      subject: safeQuestion.subject,
+      hintText: safeQuestion.hintText || '(빈값)',
+      hintImageUrl: safeQuestion.hintImageUrl || '(빈값)'
+    });
+    
+    await setDoc(doc(db!, QUESTIONS_COLLECTION, newId.toString()), safeQuestion);
     console.log('문제 추가 성공:', newQuestion.id);
     return newQuestion;
   } catch (error) {
@@ -323,18 +339,30 @@ export const updateQuestion = async (question: Question): Promise<void> => {
   }
 
   try {
-    // Firebase updateDoc에 전달할 데이터를 안전하게 준비
-    const updateData = {
+    // Firebase updateDoc에 전달할 데이터를 안전하게 준비 (undefined 값 제거)
+    const updateData: any = {
       question: question.question,
       options: question.options,
       correctAnswer: question.correctAnswer,
       explanation: question.explanation,
-      subject: question.subject,
-      imageUrl: question.imageUrl,
-      explanationImageUrl: question.explanationImageUrl,
-      hintText: question.hintText,
-      hintImageUrl: question.hintImageUrl
+      subject: question.subject
     };
+    
+    // undefined가 아닌 값들만 포함
+    if (question.imageUrl !== undefined) {
+      updateData.imageUrl = question.imageUrl || '';
+    }
+    if (question.explanationImageUrl !== undefined) {
+      updateData.explanationImageUrl = question.explanationImageUrl || '';
+    }
+    if (question.hintText !== undefined) {
+      updateData.hintText = question.hintText || '';
+    }
+    if (question.hintImageUrl !== undefined) {
+      updateData.hintImageUrl = question.hintImageUrl || '';
+    }
+    
+    console.log('🔄 Firebase에 전달할 안전한 데이터:', updateData);
     
     await updateDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), updateData);
     console.log('문제 수정 성공:', question.id);
