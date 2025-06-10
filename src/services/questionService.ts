@@ -559,13 +559,12 @@ export const migrateQuestionsWithHints = async (): Promise<void> => {
       
       // 힌트 필드가 없는 문제만 업데이트
       if (!questionData.hasOwnProperty('hintText') || !questionData.hasOwnProperty('hintImageUrl')) {
-        const updatedQuestion: Question = {
-          ...questionData,
+        const updateData = {
           hintText: questionData.hintText || undefined,
           hintImageUrl: questionData.hintImageUrl || undefined
         };
         
-        await updateDoc(doc(db!, QUESTIONS_COLLECTION, docSnapshot.id), updatedQuestion);
+        await updateDoc(doc(db!, QUESTIONS_COLLECTION, docSnapshot.id), updateData);
         migratedCount++;
         
         console.log(`✅ 문제 ${questionData.id} 마이그레이션 완료`);
