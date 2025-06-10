@@ -323,7 +323,20 @@ export const updateQuestion = async (question: Question): Promise<void> => {
   }
 
   try {
-    await updateDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), { ...question });
+    // Firebase updateDoc에 전달할 데이터를 안전하게 준비
+    const updateData = {
+      question: question.question,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
+      subject: question.subject,
+      imageUrl: question.imageUrl,
+      explanationImageUrl: question.explanationImageUrl,
+      hintText: question.hintText,
+      hintImageUrl: question.hintImageUrl
+    };
+    
+    await updateDoc(doc(db!, QUESTIONS_COLLECTION, question.id.toString()), updateData);
     console.log('문제 수정 성공:', question.id);
   } catch (error) {
     console.error('문제 수정 실패:', error);
