@@ -122,9 +122,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       const latestQuestions = await forceRefreshFromFirebase();
       setQuestions(latestQuestions);
       showSnackbar(`최신 데이터 ${latestQuestions.length}개 문제를 강제로 가져왔습니다.`, 'success');
+      return latestQuestions; // 반환값 추가
     } catch (error) {
       console.error('강제 새로고침 실패:', error);
       showSnackbar('강제 새로고침에 실패했습니다.', 'error');
+      return null; // 실패 시 null 반환
     } finally {
       setSaving(false);
     }
@@ -305,16 +307,34 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
     });
     
     try {
+      let updatedQuestion: Question;
+      
       if (cleanedQuestion.id) {
         // 수정
+        console.log('✏️ 문제 수정 시작:', cleanedQuestion.id);
         await updateQuestion(cleanedQuestion as Question);
+        updatedQuestion = cleanedQuestion as Question;
         showSnackbar('문제가 성공적으로 수정되었습니다.', 'success');
+        
+        // 즉시 로컬 상태 업데이트 (수정)
+        setQuestions(prevQuestions => 
+          prevQuestions.map(q => 
+            q.id === updatedQuestion.id ? updatedQuestion : q
+          )
+        );
+        console.log('🔄 로컬 상태 즉시 업데이트 완료 (수정)');
       } else {
         // 추가
-        await addQuestion(cleanedQuestion as Omit<Question, 'id'>);
+        console.log('➕ 새 문제 추가 시작');
+        updatedQuestion = await addQuestion(cleanedQuestion as Omit<Question, 'id'>);
         showSnackbar('새 문제가 성공적으로 추가되었습니다.', 'success');
+        
+        // 즉시 로컬 상태 업데이트 (추가)
+        setQuestions(prevQuestions => [...prevQuestions, updatedQuestion]);
+        console.log('🔄 로컬 상태 즉시 업데이트 완료 (추가)');
       }
       
+      // 다이얼로그 닫기 및 상태 초기화
       setEditDialogOpen(false);
       setEditingQuestion({});
       setImagePreview('');
@@ -324,6 +344,20 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       setHintImagePreview('');
       setHintImageFile(null);
       console.log('✅ 다이얼로그 닫기 및 상태 초기화 완료');
+      
+      // Firebase에서 최신 데이터 강제 새로고침 (백그라운드에서 실행)
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Firebase에서 최신 데이터 강제 새로고침 시작...');
+          const latestQuestions = await handleForceRefresh();
+          if (latestQuestions && latestQuestions.length > 0) {
+            console.log('✅ Firebase 새로고침 완료:', latestQuestions.length, '개 문제');
+          }
+        } catch (refreshError) {
+          console.warn('Firebase 새로고침 실패 (무시 가능):', refreshError);
+        }
+      }, 1000);
+      
     } catch (error) {
       console.error('문제 저장 실패:', error);
       showSnackbar(isOnline ? '저장에 실패했습니다.' : '오프라인 상태에서 로컬에 저장되었습니다.', 
@@ -337,8 +371,27 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
     if (!window.confirm('정말 이 문제를 삭제하시겠습니까?')) return;
 
     try {
+      console.log('🗑️ 문제 삭제 시작:', id);
       await deleteQuestion(id);
       showSnackbar('문제가 성공적으로 삭제되었습니다.', 'success');
+      
+      // 즉시 로컬 상태 업데이트 (삭제)
+      setQuestions(prevQuestions => prevQuestions.filter(q => q.id !== id));
+      console.log('🔄 로컬 상태 즉시 업데이트 완료 (삭제)');
+      
+      // Firebase에서 최신 데이터 강제 새로고침 (백그라운드에서 실행)
+      setTimeout(async () => {
+        try {
+          console.log('🔄 삭제 후 Firebase 새로고침 시작...');
+          const latestQuestions = await handleForceRefresh();
+          if (latestQuestions) {
+            console.log('✅ 삭제 후 Firebase 새로고침 완료:', latestQuestions.length, '개 문제');
+          }
+        } catch (refreshError) {
+          console.warn('삭제 후 Firebase 새로고침 실패 (무시 가능):', refreshError);
+        }
+      }, 1000);
+      
     } catch (error) {
       console.error('문제 삭제 실패:', error);
       showSnackbar(isOnline ? '삭제에 실패했습니다.' : '오프라인 상태에서 로컬에서 삭제되었습니다.', 
@@ -865,7 +918,10 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               multiline
               rows={4}
               value={editingQuestion.question || ''}
-              onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
+              onChange={(e) => {
+                console.log('📝 문제 내용 변경:', e.target.value.substring(0, 50) + '...');
+                setEditingQuestion({...editingQuestion, question: e.target.value});
+              }}
               fullWidth
               placeholder="명확하고 이해하기 쉬운 문제를 작성하세요"
             />
@@ -977,7 +1033,11 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               <RadioGroup
                 row
                 value={editingQuestion.correctAnswer || 0}
-                onChange={(e) => setEditingQuestion({...editingQuestion, correctAnswer: parseInt(e.target.value)})}
+                onChange={(e) => {
+                  const answerIndex = parseInt(e.target.value);
+                  console.log('✅ 정답 변경:', answerIndex + 1, '번');
+                  setEditingQuestion({...editingQuestion, correctAnswer: answerIndex});
+                }}
               >
                 {[0, 1, 2, 3].map(index => (
                   <FormControlLabel
@@ -995,7 +1055,10 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
               multiline
               rows={5}
               value={editingQuestion.explanation || ''}
-              onChange={(e) => setEditingQuestion({...editingQuestion, explanation: e.target.value})}
+              onChange={(e) => {
+                console.log('📖 해설 변경:', e.target.value.substring(0, 50) + '...');
+                setEditingQuestion({...editingQuestion, explanation: e.target.value});
+              }}
               fullWidth
               placeholder="문제의 정답에 대한 자세한 해설을 입력하세요"
             />
