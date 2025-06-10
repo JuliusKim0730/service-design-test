@@ -148,7 +148,7 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
       await migrateQuestionsWithHints();
       alert('✅ 마이그레이션이 완료되었습니다! 페이지를 새로고침해주세요.');
       // 문제 목록 새로고침
-      fetchQuestions();
+      await handleForceRefresh();
     } catch (error) {
       console.error('마이그레이션 실패:', error);
       alert('❌ 마이그레이션 중 오류가 발생했습니다. 콘솔을 확인해주세요.');
