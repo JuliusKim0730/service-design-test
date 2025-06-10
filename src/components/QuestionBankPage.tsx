@@ -157,6 +157,26 @@ const QuestionBankPage: React.FC<QuestionBankPageProps> = ({ onBack }) => {
     }
   };
 
+  const handleOpenDialog = () => {
+    console.log('➕ 새 문제 추가 시작');
+    setEditingQuestion({
+      question: '',
+      options: ['', '', '', ''],
+      correctAnswer: 0,
+      explanation: '',
+      subject: '서비스경험디자인기획설계',
+      hintText: '',
+      hintImageUrl: ''
+    });
+    setEditDialogOpen(true);
+    setImagePreview('');
+    setImageFile(null);
+    setExplanationImagePreview('');
+    setExplanationImageFile(null);
+    setHintImagePreview('');
+    setHintImageFile(null);
+  };
+
   // 네트워크 상태 감지
   useEffect(() => {
     const handleOnline = () => {
