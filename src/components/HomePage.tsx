@@ -23,9 +23,21 @@ interface HomePageProps {
   onStartExam: () => void;
   onGoToQuestionBank: () => void;
   onGoToStudy: () => void;
+  onGoToExamHistory: () => void;
+  savedExamSession?: any;
+  onContinueExam: () => void;
+  onDiscardSavedExam: () => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onStartExam, onGoToQuestionBank, onGoToStudy }) => {
+const HomePage: React.FC<HomePageProps> = ({ 
+  onStartExam, 
+  onGoToQuestionBank, 
+  onGoToStudy, 
+  onGoToExamHistory,
+  savedExamSession,
+  onContinueExam,
+  onDiscardSavedExam
+}) => {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const { authState, signOut } = useAuth();
 
@@ -106,6 +118,51 @@ const HomePage: React.FC<HomePageProps> = ({ onStartExam, onGoToQuestionBank, on
           </Typography>
         )}
       </Box>
+
+      {/* 중간 저장된 시험 알림 */}
+      {savedExamSession && isAuthenticated && (
+        <Box sx={{ mb: 4 }}>
+          <Card sx={{ 
+            backgroundColor: '#fff3e0', 
+            border: '2px solid #ff9800',
+            borderRadius: 2
+          }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#f57c00' }}>
+                  ⏸️ 중단된 시험이 있습니다
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                이전에 진행하던 시험이 저장되어 있습니다. 이어서 시험을 보시거나 새로 시작하실 수 있습니다.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                진행률: {Math.round((savedExamSession.currentQuestionIndex / savedExamSession.questions.length) * 100)}% 
+                ({savedExamSession.currentQuestionIndex + 1}/{savedExamSession.questions.length}문제)
+              </Typography>
+              <Box display="flex" gap={2} flexWrap="wrap">
+                <Button 
+                  variant="contained" 
+                  onClick={onContinueExam}
+                  sx={{ 
+                    backgroundColor: '#4CAF50', 
+                    '&:hover': { backgroundColor: '#45a049' }
+                  }}
+                >
+                  이어서 시험보기
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  onClick={onDiscardSavedExam}
+                  color="warning"
+                >
+                  저장된 시험 삭제
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      )}
 
       {/* 메인 카드 섹션 */}
       <Box 
@@ -244,6 +301,48 @@ const HomePage: React.FC<HomePageProps> = ({ onStartExam, onGoToQuestionBank, on
                     }}
                   >
                     기출문제 확인
+                  </Button>
+                </CardActions>
+              </Card>
+            </Box>
+          )}
+
+          {/* 시험 결과 히스토리 카드 - 인증된 사용자만 */}
+          {isAuthenticated && (
+            <Box sx={{ flex: '1 1 300px', maxWidth: '400px' }}>
+              <Card 
+                sx={{ 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                  }
+                }}
+              >
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography variant="h5" component="h3" gutterBottom sx={{ color: '#9C27B0', fontWeight: 'bold' }}>
+                    📊 시험 결과 히스토리
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    지금까지 본 시험들의 결과를 확인하고 관리할 수 있습니다. PDF로 다운로드하거나 상세 분석을 볼 수 있습니다.
+                  </Typography>
+                </CardContent>
+                <CardActions>
+                  <Button 
+                    fullWidth 
+                    variant="contained" 
+                    onClick={onGoToExamHistory}
+                    sx={{ 
+                      backgroundColor: '#9C27B0', 
+                      '&:hover': { backgroundColor: '#7B1FA2' },
+                      color: 'white',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    결과 확인하기
                   </Button>
                 </CardActions>
               </Card>

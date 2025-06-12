@@ -18,14 +18,19 @@ import {
   ListItemText,
   ListItemAvatar,
   Divider,
-  Paper
+  Paper,
+  Alert
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  Home as HomeIcon
+  Home as HomeIcon,
+  FileDownload as FileDownloadIcon
 } from '@mui/icons-material';
-import { Question, QuestionResult, Subject } from '../types/Question';
+import { Question, QuestionResult, Subject, SubjectScore, ExamHistory } from '../types/Question';
+import { generateExamResultPDF } from '../utils/pdfUtils';
+import { saveExamHistory, generateExamId } from '../services/examHistoryService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ExamResultPageProps {
   questions: Question[];
@@ -33,12 +38,7 @@ interface ExamResultPageProps {
   onBackToHome: () => void;
 }
 
-interface SubjectScore {
-  subject: Subject;
-  correct: number;
-  total: number;
-  percentage: number;
-}
+
 
 const ExamResultPage: React.FC<ExamResultPageProps> = ({ 
   questions, 
@@ -47,6 +47,9 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
 }) => {
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [selectedResult, setSelectedResult] = useState<QuestionResult | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [examSaved, setExamSaved] = useState(false);
+  const { authState } = useAuth();
 
   // 과목별 점수 계산
   const calculateSubjectScores = (): SubjectScore[] => {
@@ -76,6 +79,26 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
   const totalPercentage = Math.round((totalCorrect / totalQuestions) * 100);
   const wrongQuestions = questions.filter((_, index) => !results[index]?.isCorrect);
 
+  // 시험 결과 저장 (한 번만)
+  React.useEffect(() => {
+    if (!examSaved && authState.status === 'authenticated' && authState.user) {
+      const examHistory: ExamHistory = {
+        id: generateExamId(),
+        userId: authState.user.uid,
+        examDate: new Date(),
+        questions,
+        results,
+        totalScore: totalPercentage,
+        totalQuestions,
+        timeSpent: results.reduce((sum, result) => sum + result.timeSpent, 0),
+        subjectScores
+      };
+      
+      saveExamHistory(examHistory);
+      setExamSaved(true);
+    }
+  }, [examSaved, authState, questions, results, totalPercentage, totalQuestions, subjectScores]);
+
   const handleQuestionClick = (question: Question, result: QuestionResult) => {
     setSelectedQuestion(question);
     setSelectedResult(result);
@@ -84,6 +107,25 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
   const handleCloseDialog = () => {
     setSelectedQuestion(null);
     setSelectedResult(null);
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      await generateExamResultPDF(
+        questions,
+        results,
+        subjectScores,
+        totalPercentage,
+        totalQuestions,
+        new Date()
+      );
+    } catch (error) {
+      console.error('PDF 생성 실패:', error);
+      alert('PDF 다운로드에 실패했습니다.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const getSubjectDisplayName = (subject: Subject): string => {
@@ -121,6 +163,11 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
         <Typography variant="h6" color="text.secondary">
           시험이 완료되었습니다
         </Typography>
+        {examSaved && (
+          <Alert severity="success" sx={{ mt: 2, maxWidth: 400, mx: 'auto' }}>
+            시험 결과가 저장되었습니다
+          </Alert>
+        )}
       </Box>
 
       {/* 총 점수 */}
@@ -246,7 +293,22 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
       )}
 
       {/* 액션 버튼 */}
-      <Box textAlign="center">
+      <Box textAlign="center" display="flex" gap={2} justifyContent="center" flexWrap="wrap">
+        <Button
+          variant="contained"
+          size="large"
+          onClick={handleDownloadPDF}
+          startIcon={<FileDownloadIcon />}
+          disabled={isGeneratingPdf}
+          sx={{
+            backgroundColor: '#4CAF50',
+            '&:hover': { backgroundColor: '#45a049' },
+            px: 4,
+            py: 1.5
+          }}
+        >
+          {isGeneratingPdf ? 'PDF 생성 중...' : 'PDF 다운로드'}
+        </Button>
         <Button
           variant="contained"
           size="large"
@@ -262,6 +324,16 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
           홈으로 돌아가기
         </Button>
       </Box>
+
+      {/* PDF 생성 로딩 표시 */}
+      {isGeneratingPdf && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
+          <LinearProgress />
+          <Alert severity="info" sx={{ borderRadius: 0 }}>
+            PDF를 생성하고 있습니다...
+          </Alert>
+        </Box>
+      )}
 
       {/* 문제 상세 다이얼로그 */}
       <Dialog 

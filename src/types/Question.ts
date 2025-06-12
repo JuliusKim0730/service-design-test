@@ -34,4 +34,25 @@ export interface ExamSession {
   results: QuestionResult[];
   startTime: Date;
   isCompleted: boolean;
+}
+
+// 시험 결과 히스토리 타입
+export interface ExamHistory {
+  id: string;
+  userId: string;
+  examDate: Date;
+  questions: Question[];
+  results: QuestionResult[];
+  totalScore: number;
+  totalQuestions: number;
+  timeSpent: number; // 총 소요 시간 (초)
+  subjectScores: SubjectScore[];
+}
+
+// 과목별 점수 타입
+export interface SubjectScore {
+  subject: Subject;
+  correct: number;
+  total: number;
+  percentage: number;
 } 

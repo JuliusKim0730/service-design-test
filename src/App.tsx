@@ -6,10 +6,12 @@ import ExamPage from './components/ExamPage';
 import QuestionBankPage from './components/QuestionBankPage';
 import StudyPage from './components/StudyPage';
 import ExamResultPage from './components/ExamResultPage';
+import ExamHistoryPage from './components/ExamHistoryPage';
 import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Question, QuestionResult } from './types/Question';
 import { subscribeToQuestions } from './services/questionService';
+import { getExamSession, clearExamSession } from './services/examHistoryService';
 import { Subject } from './types/Question';
 
 const theme = createTheme({
@@ -58,7 +60,7 @@ const LoadingScreen: React.FC = () => (
   </Box>
 );
 
-type Page = 'home' | 'exam' | 'questionBank' | 'study' | 'results';
+type Page = 'home' | 'exam' | 'questionBank' | 'study' | 'results' | 'examHistory';
 
 // 메인 앱 컴포넌트 (인증된 상태에서만 렌더링)
 const AuthenticatedApp: React.FC = () => {
@@ -66,6 +68,7 @@ const AuthenticatedApp: React.FC = () => {
   const [examQuestions, setExamQuestions] = useState<Question[]>([]);
   const [examResults, setExamResults] = useState<QuestionResult[]>([]);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [savedExamSession, setSavedExamSession] = useState<any>(null);
   const { authState } = useAuth();
 
   // Firebase에서 실시간으로 모든 문제 구독
@@ -80,6 +83,12 @@ const AuthenticatedApp: React.FC = () => {
         unsubscribe();
       }
     };
+  }, []);
+
+  // 저장된 시험 세션 확인
+  useEffect(() => {
+    const session = getExamSession();
+    setSavedExamSession(session);
   }, []);
 
   const handleStartExam = () => {
@@ -114,7 +123,20 @@ const AuthenticatedApp: React.FC = () => {
 
     console.log('📝 생성된 시험 문제 수:', examQuestions.length);
     setExamQuestions(examQuestions);
+    setSavedExamSession(null); // 새 시험 시작 시 저장된 세션 초기화
     setCurrentPage('exam');
+  };
+
+  const handleContinueExam = () => {
+    if (savedExamSession) {
+      setExamQuestions(savedExamSession.questions);
+      setCurrentPage('exam');
+    }
+  };
+
+  const handleDiscardSavedExam = () => {
+    clearExamSession();
+    setSavedExamSession(null);
   };
 
   const handleExamComplete = (results: QuestionResult[]) => {
@@ -130,6 +152,10 @@ const AuthenticatedApp: React.FC = () => {
 
   const handleGoToStudy = () => {
     setCurrentPage('study');
+  };
+
+  const handleGoToExamHistory = () => {
+    setCurrentPage('examHistory');
   };
 
   const renderPage = () => {
@@ -150,6 +176,9 @@ const AuthenticatedApp: React.FC = () => {
             questions={examQuestions}
             onExamComplete={handleExamComplete}
             onBackToHome={handleBackToHome}
+            initialQuestionIndex={savedExamSession?.currentQuestionIndex}
+            initialResults={savedExamSession?.results}
+            examStartTime={savedExamSession?.startTime}
           />
         );
       case 'questionBank':
@@ -174,12 +203,18 @@ const AuthenticatedApp: React.FC = () => {
             onBackToHome={handleBackToHome}
           />
         );
+      case 'examHistory':
+        return <ExamHistoryPage onBack={() => setCurrentPage('home')} />;
       default:
         return (
           <HomePage 
             onStartExam={handleStartExam} 
             onGoToQuestionBank={() => setCurrentPage('questionBank')}
             onGoToStudy={handleGoToStudy}
+            onGoToExamHistory={handleGoToExamHistory}
+            savedExamSession={savedExamSession}
+            onContinueExam={handleContinueExam}
+            onDiscardSavedExam={handleDiscardSavedExam}
           />
         );
     }
