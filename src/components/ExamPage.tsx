@@ -69,6 +69,23 @@ const ExamPage: React.FC<ExamPageProps> = ({
     setTimer(0);
   }, [currentQuestionIndex]);
 
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const saveCurrentSession = useCallback(() => {
+    const session = {
+      questions,
+      currentQuestionIndex,
+      results,
+      startTime: examSessionStartTime,
+      isCompleted: false
+    };
+    saveExamSession(session);
+  }, [questions, currentQuestionIndex, results, examSessionStartTime]);
+
   // 자동 저장 (10초마다)
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
@@ -89,23 +106,6 @@ const ExamPage: React.FC<ExamPageProps> = ({
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [saveCurrentSession]);
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const saveCurrentSession = useCallback(() => {
-    const session = {
-      questions,
-      currentQuestionIndex,
-      results,
-      startTime: examSessionStartTime,
-      isCompleted: false
-    };
-    saveExamSession(session);
-  }, [questions, currentQuestionIndex, results, examSessionStartTime]);
 
   const handleExitExam = () => {
     setShowExitDialog(true);
