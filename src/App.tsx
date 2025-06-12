@@ -168,6 +168,10 @@ const AuthenticatedApp: React.FC = () => {
               onStartExam={handleStartExam} 
               onGoToQuestionBank={() => setCurrentPage('questionBank')}
               onGoToStudy={handleGoToStudy}
+              onGoToExamHistory={handleGoToExamHistory}
+              savedExamSession={savedExamSession}
+              onContinueExam={handleContinueExam}
+              onDiscardSavedExam={handleDiscardSavedExam}
             />
           );
         }
@@ -189,6 +193,10 @@ const AuthenticatedApp: React.FC = () => {
               onStartExam={handleStartExam} 
               onGoToQuestionBank={() => setCurrentPage('questionBank')}
               onGoToStudy={handleGoToStudy}
+              onGoToExamHistory={handleGoToExamHistory}
+              savedExamSession={savedExamSession}
+              onContinueExam={handleContinueExam}
+              onDiscardSavedExam={handleDiscardSavedExam}
             />
           );
         }
