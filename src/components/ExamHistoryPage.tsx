@@ -28,7 +28,7 @@ import {
   Visibility as VisibilityIcon,
   Assessment as AssessmentIcon
 } from '@mui/icons-material';
-import { ExamHistory, SubjectScore, Question, QuestionResult } from '../types/Question';
+import { ExamHistory } from '../types/Question';
 import { getExamHistory, deleteExamHistory } from '../services/examHistoryService';
 import { generateExamResultPDF } from '../utils/pdfUtils';
 

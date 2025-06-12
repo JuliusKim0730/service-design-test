@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -76,7 +76,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
     }, 10000); // 10초마다 자동 저장
 
     return () => clearInterval(autoSaveInterval);
-  }, [currentQuestionIndex, results, examSessionStartTime]);
+  }, [saveCurrentSession]);
 
   // 페이지 나가기 전 경고
   useEffect(() => {
@@ -88,7 +88,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentQuestionIndex, results, examSessionStartTime]);
+  }, [saveCurrentSession]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -96,7 +96,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const saveCurrentSession = () => {
+  const saveCurrentSession = useCallback(() => {
     const session = {
       questions,
       currentQuestionIndex,
@@ -105,7 +105,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
       isCompleted: false
     };
     saveExamSession(session);
-  };
+  }, [questions, currentQuestionIndex, results, examSessionStartTime]);
 
   const handleExitExam = () => {
     setShowExitDialog(true);
