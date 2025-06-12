@@ -16,7 +16,6 @@ import {
   ListItemSecondaryAction,
   IconButton,
   Chip,
-  Grid,
   Paper,
   Divider,
   Alert,
@@ -144,48 +143,40 @@ const ExamHistoryPage: React.FC<ExamHistoryPageProps> = ({ onBack }) => {
       {/* 통계 요약 */}
       {examHistory.length > 0 && (
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={3}>
-              <Box textAlign="center">
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-                  {examHistory.length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  총 시험 횟수
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <Box textAlign="center">
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#4CAF50' }}>
-                  {Math.round(examHistory.reduce((sum, exam) => sum + exam.totalScore, 0) / examHistory.length)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  평균 점수
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <Box textAlign="center">
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FF9800' }}>
-                  {Math.max(...examHistory.map(exam => exam.totalScore))}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  최고 점수
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <Box textAlign="center">
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2196F3' }}>
-                  {formatTime(Math.round(examHistory.reduce((sum, exam) => sum + exam.timeSpent, 0) / examHistory.length))}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  평균 소요 시간
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
+          <Box display="flex" flexWrap="wrap" gap={3} justifyContent="space-around">
+            <Box textAlign="center" sx={{ flex: '1 1 200px', minWidth: '200px' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                {examHistory.length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                총 시험 횟수
+              </Typography>
+            </Box>
+            <Box textAlign="center" sx={{ flex: '1 1 200px', minWidth: '200px' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#4CAF50' }}>
+                {Math.round(examHistory.reduce((sum, exam) => sum + exam.totalScore, 0) / examHistory.length)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                평균 점수
+              </Typography>
+            </Box>
+            <Box textAlign="center" sx={{ flex: '1 1 200px', minWidth: '200px' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FF9800' }}>
+                {Math.max(...examHistory.map(exam => exam.totalScore))}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                최고 점수
+              </Typography>
+            </Box>
+            <Box textAlign="center" sx={{ flex: '1 1 200px', minWidth: '200px' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2196F3' }}>
+                {formatTime(Math.round(examHistory.reduce((sum, exam) => sum + exam.timeSpent, 0) / examHistory.length))}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                평균 소요 시간
+              </Typography>
+            </Box>
+          </Box>
         </Paper>
       )}
 
@@ -227,21 +218,20 @@ const ExamHistoryPage: React.FC<ExamHistoryPageProps> = ({ onBack }) => {
                           소요시간: {formatTime(exam.timeSpent)}
                         </Typography>
                       </Box>
-                      <Grid container spacing={1}>
+                      <Box display="flex" flexWrap="wrap" gap={1}>
                         {exam.subjectScores.map((score, idx) => (
-                          <Grid item key={idx}>
-                            <Chip
-                              size="small"
-                              label={`${getSubjectDisplayName(score.subject).substring(0, 8)}... ${score.percentage}%`}
-                              sx={{ 
-                                backgroundColor: getScoreColor(score.percentage),
-                                color: 'white',
-                                fontSize: '0.75rem'
-                              }}
-                            />
-                          </Grid>
+                          <Chip
+                            key={idx}
+                            size="small"
+                            label={`${getSubjectDisplayName(score.subject).substring(0, 8)}... ${score.percentage}%`}
+                            sx={{ 
+                              backgroundColor: getScoreColor(score.percentage),
+                              color: 'white',
+                              fontSize: '0.75rem'
+                            }}
+                          />
                         ))}
-                      </Grid>
+                      </Box>
                     </Box>
                   }
                 />
@@ -314,9 +304,9 @@ const ExamHistoryPage: React.FC<ExamHistoryPageProps> = ({ onBack }) => {
             <DialogContent>
               <Box mb={3}>
                 <Typography variant="h6" gutterBottom>과목별 점수</Typography>
-                <Grid container spacing={2}>
+                <Box display="flex" flexWrap="wrap" gap={2}>
                   {selectedExam.subjectScores.map((score, index) => (
-                    <Grid item xs={12} sm={6} key={index}>
+                    <Box key={index} sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                       <Card sx={{ 
                         border: `2px solid ${getScoreColor(score.percentage)}`,
                         borderRadius: 2
@@ -340,9 +330,9 @@ const ExamHistoryPage: React.FC<ExamHistoryPageProps> = ({ onBack }) => {
                           </Typography>
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                   ))}
-                </Grid>
+                </Box>
               </Box>
 
               <Divider sx={{ my: 2 }} />
