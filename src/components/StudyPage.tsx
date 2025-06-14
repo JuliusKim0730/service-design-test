@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -18,7 +18,8 @@ import {
   Divider,
   Collapse,
   Card,
-  CardContent
+  CardContent,
+  Alert
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -28,10 +29,18 @@ import {
   Stop as StopIcon,
   Lightbulb as LightbulbIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  PlayArrow as PlayArrowIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { subscribeToQuestions } from '../services/questionService';
+import { 
+  saveStudySession, 
+  getStudySession, 
+  clearStudySession, 
+  updateStudySessionActivity 
+} from '../services/examHistoryService';
 
 interface StudyPageProps {
   onBackToHome: () => void;
@@ -45,10 +54,51 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
   const [showStopDialog, setShowStopDialog] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [isSessionRecovered, setIsSessionRecovered] = useState(false);
+  const [showContinueDialog, setShowContinueDialog] = useState(false);
+  const [savedSession, setSavedSession] = useState<any>(null);
+
+  // 공부 세션 저장
+  const saveCurrentStudySession = useCallback(() => {
+    if (questions.length === 0) return;
+
+    const session = {
+      questions,
+      currentQuestionIndex,
+      answeredQuestions: Array.from(answeredQuestions),
+      startTime: new Date(),
+      lastActiveTime: new Date()
+    };
+    saveStudySession(session);
+  }, [questions, currentQuestionIndex, answeredQuestions]);
+
+  // 정기적으로 세션 저장 (30초마다)
+  useEffect(() => {
+    if (questions.length === 0 || !isSessionRecovered) return;
+
+    const autoSaveInterval = setInterval(() => {
+      saveCurrentStudySession();
+      updateStudySessionActivity();
+    }, 30000); // 30초마다
+
+    return () => clearInterval(autoSaveInterval);
+  }, [saveCurrentStudySession, isSessionRecovered, questions.length]);
+
+  // 페이지 나가기 전 저장
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (questions.length > 0) {
+        saveCurrentStudySession();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveCurrentStudySession]);
 
   useEffect(() => {
     // Firebase에서 실시간으로 모든 문제를 구독하여 가져오기
-    const unsubscribe = subscribeToQuestions((allQuestions) => {
+    const unsubscribe = subscribeToQuestions(async (allQuestions) => {
       console.log('🔄 실시간 데이터 업데이트 - 전체 문제 수:', allQuestions.length);
       
       // 이미지가 있는 문제 확인
@@ -58,9 +108,23 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
         console.log(`문제 ${q.id}: ${q.imageUrl?.substring(0, 50)}...`);
       });
       
-      // 문제 섞기 (매번 다른 순서로)
-      const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
-      setQuestions(shuffledQuestions);
+      // 저장된 세션이 있는지 확인
+      const savedStudySession = await getStudySession();
+      
+      if (savedStudySession && savedStudySession.questions.length > 0) {
+        console.log('📖 저장된 공부 세션 발견!');
+        setSavedSession(savedStudySession);
+        setShowContinueDialog(true);
+        
+        // 임시로 새 문제들 설정 (사용자가 선택할 때까지)
+        const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+        setQuestions(shuffledQuestions);
+      } else {
+        // 저장된 세션이 없으면 새로 시작
+        const shuffledQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+        setQuestions(shuffledQuestions);
+        setIsSessionRecovered(true);
+      }
     });
 
     // 컴포넌트 언마운트 시 구독 해제
@@ -70,6 +134,26 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       }
     };
   }, []);
+
+  // 저장된 세션 이어서 하기
+  const handleContinueStudy = () => {
+    if (savedSession) {
+      setQuestions(savedSession.questions);
+      setCurrentQuestionIndex(savedSession.currentQuestionIndex);
+      setAnsweredQuestions(new Set(savedSession.answeredQuestions));
+      setShowContinueDialog(false);
+      setIsSessionRecovered(true);
+      console.log('📖 공부 세션 복구 완료!');
+    }
+  };
+
+  // 새로 시작하기
+  const handleStartNewStudy = () => {
+    clearStudySession();
+    setShowContinueDialog(false);
+    setIsSessionRecovered(true);
+    console.log('🆕 새로운 공부 시작!');
+  };
 
   const currentQuestion = questions[currentQuestionIndex];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
@@ -94,7 +178,13 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const handleShowAnswer = () => {
     if (selectedAnswer !== null) {
       setShowAnswer(true);
-      setAnsweredQuestions(prev => new Set(Array.from(prev).concat([currentQuestionIndex])));
+      const newAnsweredQuestions = new Set(Array.from(answeredQuestions).concat([currentQuestionIndex]));
+      setAnsweredQuestions(newAnsweredQuestions);
+      
+      // 답안 확인 후 세션 저장
+      setTimeout(() => {
+        saveCurrentStudySession();
+      }, 100);
     }
   };
 
@@ -104,6 +194,11 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setSelectedAnswer(null);
       setShowAnswer(false);
       setShowHint(false);
+      
+      // 다음 문제로 이동 후 세션 저장
+      setTimeout(() => {
+        saveCurrentStudySession();
+      }, 100);
     }
   };
 
@@ -113,6 +208,11 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setSelectedAnswer(null);
       setShowAnswer(false);
       setShowHint(false);
+      
+      // 이전 문제로 이동 후 세션 저장
+      setTimeout(() => {
+        saveCurrentStudySession();
+      }, 100);
     }
   };
 
@@ -125,6 +225,8 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   };
 
   const handleConfirmStop = () => {
+    // 공부 중단 시 현재 진행 상황 저장
+    saveCurrentStudySession();
     setShowStopDialog(false);
     onBackToHome();
   };
@@ -480,22 +582,74 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
         </Button>
       </Box>
 
+      {/* 세션 복구 다이얼로그 */}
+      <Dialog open={showContinueDialog} onClose={() => {}} disableEscapeKeyDown>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <PlayArrowIcon color="primary" />
+            📖 이전 공부 이어서 하기
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {savedSession && (
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                저장된 공부 세션이 있습니다!
+              </Alert>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>진행 상황:</strong> {savedSession.currentQuestionIndex + 1} / {savedSession.questions.length} 문제
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>답안 확인한 문제:</strong> {savedSession.answeredQuestions.length}개
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                마지막 활동: {new Date(savedSession.lastActiveTime).toLocaleString()}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • 이어서 하기: {savedSession.answeredQuestions.includes(savedSession.currentQuestionIndex) ? 
+                  `${savedSession.currentQuestionIndex + 2}번` : `${savedSession.currentQuestionIndex + 1}번`} 문제부터 시작
+                <br />
+                • 새로 시작: 문제를 다시 섞어서 1번부터 시작
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleStartNewStudy} 
+            startIcon={<RefreshIcon />}
+            variant="outlined"
+          >
+            새로 시작하기
+          </Button>
+          <Button 
+            onClick={handleContinueStudy} 
+            startIcon={<PlayArrowIcon />}
+            variant="contained"
+            sx={{ backgroundColor: '#FF9800', '&:hover': { backgroundColor: '#F57C00' } }}
+          >
+            이어서 하기
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* 중단 확인 다이얼로그 */}
       <Dialog open={showStopDialog} onClose={() => setShowStopDialog(false)}>
         <DialogTitle>🛑 공부를 중단하시겠습니까?</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography sx={{ mb: 2 }}>
             현재까지 {answeredQuestions.size}개의 문제를 공부했습니다.
-            <br />
-            중단하시면 홈으로 돌아갑니다.
           </Typography>
+          <Alert severity="info">
+            진행 상황이 자동으로 저장되어, 다음에 이어서 공부할 수 있습니다.
+          </Alert>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowStopDialog(false)}>
             계속 공부하기
           </Button>
           <Button onClick={handleConfirmStop} color="error">
-            중단하기
+            저장하고 중단하기
           </Button>
         </DialogActions>
       </Dialog>

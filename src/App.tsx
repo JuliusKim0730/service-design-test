@@ -11,7 +11,7 @@ import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Question, QuestionResult } from './types/Question';
 import { subscribeToQuestions } from './services/questionService';
-import { getExamSession, clearExamSession } from './services/examHistoryService';
+import { getExamSession, clearExamSession, cleanupLocalStorage } from './services/examHistoryService';
 import { Subject } from './types/Question';
 
 const theme = createTheme({
@@ -73,6 +73,9 @@ const AuthenticatedApp: React.FC = () => {
 
   // Firebase에서 실시간으로 모든 문제 구독
   useEffect(() => {
+    // 앱 시작 시 로컬 스토리지 정리
+    cleanupLocalStorage();
+    
     const unsubscribe = subscribeToQuestions((questions) => {
       console.log('🔄 App에서 실시간 데이터 업데이트 - 전체 문제 수:', questions.length);
       setAllQuestions(questions);
@@ -87,8 +90,23 @@ const AuthenticatedApp: React.FC = () => {
 
   // 저장된 시험 세션 확인
   useEffect(() => {
-    const session = getExamSession();
-    setSavedExamSession(session);
+    const checkSavedSession = async () => {
+      try {
+        const session = await getExamSession();
+        setSavedExamSession(session);
+        if (session) {
+          console.log('💾 저장된 시험 세션이 발견되었습니다:', {
+            currentQuestionIndex: session.currentQuestionIndex,
+            totalQuestions: session.questions.length,
+            lastActive: session.lastActiveTime?.toLocaleString()
+          });
+        }
+      } catch (error) {
+        console.error('시험 세션 확인 실패:', error);
+      }
+    };
+
+    checkSavedSession();
   }, []);
 
   const handleStartExam = () => {
@@ -96,6 +114,12 @@ const AuthenticatedApp: React.FC = () => {
     
     if (allQuestions.length === 0) {
       console.warn('⚠️ 문제가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    // 저장된 세션이 있으면 HomePage에서 처리하도록 함
+    if (savedExamSession) {
+      console.log('💾 저장된 시험 세션이 있습니다. HomePage에서 팝업을 표시합니다.');
       return;
     }
       
@@ -134,9 +158,11 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
-  const handleDiscardSavedExam = () => {
-    clearExamSession();
+  const handleDiscardSavedExam = async () => {
+    await clearExamSession();
     setSavedExamSession(null);
+    // 저장된 세션 삭제 후 새 시험 시작
+    handleStartExam();
   };
 
   const handleExamComplete = (results: QuestionResult[]) => {

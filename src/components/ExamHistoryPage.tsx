@@ -46,8 +46,8 @@ const ExamHistoryPage: React.FC<ExamHistoryPageProps> = ({ onBack }) => {
     loadExamHistory();
   }, []);
 
-  const loadExamHistory = () => {
-    const history = getExamHistory();
+  const loadExamHistory = async () => {
+    const history = await getExamHistory();
     // 최신 순으로 정렬
     const sortedHistory = history.sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime());
     setExamHistory(sortedHistory);

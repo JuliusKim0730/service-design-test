@@ -51,11 +51,35 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
   const [examSaved, setExamSaved] = useState(false);
   const { authState } = useAuth();
 
-  // 과목별 점수 계산
+  // 데이터 검증 및 로깅
+  React.useEffect(() => {
+    console.log('📊 시험 결과 페이지 데이터:', {
+      questionsCount: questions?.length || 0,
+      resultsCount: results?.length || 0,
+      questions: questions?.slice(0, 2),
+      results: results?.slice(0, 2)
+    });
+    
+    if (!questions || !results || questions.length === 0 || results.length === 0) {
+      console.error('❌ 시험 데이터가 없습니다:', { questions, results });
+    }
+  }, [questions, results]);
+
+  // 과목별 점수 계산 (안전한 버전)
   const calculateSubjectScores = (): SubjectScore[] => {
+    if (!questions || !results || questions.length === 0) {
+      console.warn('⚠️ 과목별 점수 계산: 데이터가 없습니다');
+      return [];
+    }
+
     const subjectMap = new Map<Subject, { correct: number; total: number }>();
     
     questions.forEach((question, index) => {
+      if (!question || !question.subject) {
+        console.warn(`⚠️ 문제 ${index}: 유효하지 않은 문제 데이터`);
+        return;
+      }
+
       const result = results[index];
       const current = subjectMap.get(question.subject) || { correct: 0, total: 0 };
       
@@ -65,38 +89,50 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
       });
     });
 
-    return Array.from(subjectMap.entries()).map(([subject, data]) => ({
+    const scores = Array.from(subjectMap.entries()).map(([subject, data]) => ({
       subject,
       correct: data.correct,
       total: data.total,
-      percentage: Math.round((data.correct / data.total) * 100)
+      percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0
     }));
+
+    console.log('📊 과목별 점수 계산 완료:', scores);
+    return scores;
   };
 
   const subjectScores = calculateSubjectScores();
-  const totalCorrect = results.filter(r => r.isCorrect).length;
-  const totalQuestions = questions.length;
-  const totalPercentage = Math.round((totalCorrect / totalQuestions) * 100);
-  const wrongQuestions = questions.filter((_, index) => !results[index]?.isCorrect);
+  const totalCorrect = results?.filter(r => r?.isCorrect).length || 0;
+  const totalQuestions = questions?.length || 0;
+  const totalPercentage = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+  const wrongQuestions = questions?.filter((_, index) => !results?.[index]?.isCorrect) || [];
 
   // 시험 결과 저장 (한 번만)
   React.useEffect(() => {
-    if (!examSaved && authState.status === 'authenticated' && authState.user) {
-      const examHistory: ExamHistory = {
-        id: generateExamId(),
-        userId: authState.user.uid,
-        examDate: new Date(),
-        questions,
-        results,
-        totalScore: totalPercentage,
-        totalQuestions,
-        timeSpent: results.reduce((sum, result) => sum + result.timeSpent, 0),
-        subjectScores
-      };
-      
-      saveExamHistory(examHistory);
-      setExamSaved(true);
-    }
+    const saveExamResult = async () => {
+      if (!examSaved) {
+        try {
+          const examHistory: ExamHistory = {
+            id: generateExamId(),
+            userId: authState.user?.uid || 'guest',
+            examDate: new Date(),
+            questions,
+            results,
+            totalScore: totalPercentage,
+            totalQuestions,
+            timeSpent: results.reduce((sum, result) => sum + result.timeSpent, 0),
+            subjectScores
+          };
+          
+          await saveExamHistory(examHistory);
+          setExamSaved(true);
+          console.log('✅ 시험 결과가 히스토리에 저장되었습니다.');
+        } catch (error) {
+          console.error('❌ 시험 결과 저장 실패:', error);
+        }
+      }
+    };
+
+    saveExamResult();
   }, [examSaved, authState, questions, results, totalPercentage, totalQuestions, subjectScores]);
 
   const handleQuestionClick = (question: Question, result: QuestionResult) => {
@@ -110,8 +146,21 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
   };
 
   const handleDownloadPDF = async () => {
+    // 데이터 검증
+    if (!questions || !results || questions.length === 0 || results.length === 0) {
+      alert('시험 데이터가 없어서 PDF를 생성할 수 없습니다.');
+      return;
+    }
+
     setIsGeneratingPdf(true);
     try {
+      console.log('📄 PDF 생성 요청:', {
+        questionsCount: questions.length,
+        resultsCount: results.length,
+        totalPercentage,
+        totalQuestions
+      });
+
       await generateExamResultPDF(
         questions,
         results,
@@ -120,9 +169,13 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
         totalQuestions,
         new Date()
       );
+      
+      console.log('✅ PDF 생성 성공');
+      alert('PDF가 성공적으로 다운로드되었습니다.');
     } catch (error) {
-      console.error('PDF 생성 실패:', error);
-      alert('PDF 다운로드에 실패했습니다.');
+      console.error('❌ PDF 생성 실패:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`PDF 다운로드에 실패했습니다: ${errorMessage}`);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -143,6 +196,30 @@ const ExamResultPage: React.FC<ExamResultPageProps> = ({
     if (percentage >= 60) return '#FF9800';
     return '#F44336';
   };
+
+  // 데이터 없음 처리
+  if (!questions || !results || questions.length === 0 || results.length === 0) {
+    return (
+      <Container maxWidth="lg" sx={{ minHeight: '100vh', py: 4 }}>
+        <Box textAlign="center">
+          <Typography variant="h4" color="error" gutterBottom>
+            ❌ 시험 결과를 불러올 수 없습니다
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+            시험 데이터가 없습니다. 다시 시험을 치르세요.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<HomeIcon />}
+            onClick={onBackToHome}
+            size="large"
+          >
+            홈으로 돌아가기
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ minHeight: '100vh', py: 4 }}>

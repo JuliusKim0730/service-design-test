@@ -33,6 +33,7 @@ export interface ExamSession {
   currentQuestionIndex: number;
   results: QuestionResult[];
   startTime: Date;
+  lastActiveTime: Date;
   isCompleted: boolean;
 }
 

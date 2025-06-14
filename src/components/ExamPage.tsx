@@ -75,15 +75,16 @@ const ExamPage: React.FC<ExamPageProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const saveCurrentSession = useCallback(() => {
+  const saveCurrentSession = useCallback(async () => {
     const session = {
       questions,
       currentQuestionIndex,
       results,
       startTime: examSessionStartTime,
+      lastActiveTime: new Date(),
       isCompleted: false
     };
-    saveExamSession(session);
+    await saveExamSession(session);
   }, [questions, currentQuestionIndex, results, examSessionStartTime]);
 
   // 자동 저장 (10초마다)
@@ -111,8 +112,8 @@ const ExamPage: React.FC<ExamPageProps> = ({
     setShowExitDialog(true);
   };
 
-  const confirmExit = () => {
-    saveCurrentSession();
+  const confirmExit = async () => {
+    await saveCurrentSession();
     setShowExitDialog(false);
     onBackToHome();
   };
@@ -125,7 +126,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
     setSelectedAnswer(parseInt(event.target.value));
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (selectedAnswer === null) return;
 
     const timeSpent = Math.floor((new Date().getTime() - questionStartTime.getTime()) / 1000);
@@ -146,15 +147,13 @@ const ExamPage: React.FC<ExamPageProps> = ({
 
     if (currentQuestionIndex + 1 >= questions.length) {
       // 시험 완료 - 세션 삭제
-      clearExamSession();
+      await clearExamSession();
       onExamComplete(newResults);
     } else {
       // 다음 문제로
       setCurrentQuestionIndex(prev => prev + 1);
     }
   };
-
-
 
   if (!currentQuestion) {
     return null;

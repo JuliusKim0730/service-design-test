@@ -12,10 +12,17 @@ import {
   DialogActions,
   CardActions,
   Avatar,
-  IconButton
+  IconButton,
+  Alert
 } from '@mui/material';
 import {
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  QuestionAnswer as QuestionIcon,
+  School as StudyIcon,
+  Quiz as ExamIcon,
+  Assessment as AssessmentIcon,
+  PlayArrow as PlayArrowIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,6 +46,7 @@ const HomePage: React.FC<HomePageProps> = ({
   onDiscardSavedExam
 }) => {
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const [showContinueDialog, setShowContinueDialog] = useState(false);
   const { authState, signOut } = useAuth();
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -52,6 +60,24 @@ const HomePage: React.FC<HomePageProps> = ({
     } catch (error) {
       console.error('로그아웃 실패:', error);
     }
+  };
+
+  const handleExamClick = () => {
+    if (savedExamSession) {
+      setShowContinueDialog(true);
+    } else {
+      onStartExam();
+    }
+  };
+
+  const handleStartNewExam = () => {
+    setShowContinueDialog(false);
+    onDiscardSavedExam(); // 기존 세션 삭제 후 새 시험 시작
+  };
+
+  const handleContinueExamFromDialog = () => {
+    setShowContinueDialog(false);
+    onContinueExam();
   };
 
   const isGuest = authState.status === 'guest';
@@ -250,7 +276,7 @@ const HomePage: React.FC<HomePageProps> = ({
                   <Button 
                     fullWidth 
                     variant="contained" 
-                    onClick={onStartExam}
+                    onClick={handleExamClick}
                     sx={{ 
                       backgroundColor: '#4CAF50', 
                       '&:hover': { backgroundColor: '#45a049' },
@@ -404,6 +430,67 @@ const HomePage: React.FC<HomePageProps> = ({
           <Button onClick={() => setShowComingSoon(false)}>확인</Button>
         </DialogActions>
       </Dialog>
+
+             {/* 시험 세션 복구 다이얼로그 */}
+       <Dialog 
+         open={showContinueDialog} 
+         onClose={() => {}} 
+         disableEscapeKeyDown
+         maxWidth="sm"
+         fullWidth
+       >
+         <DialogTitle>
+           <Box display="flex" alignItems="center" gap={1}>
+             <PlayArrowIcon color="primary" />
+             📝 이전 시험 이어서 하기
+           </Box>
+         </DialogTitle>
+         <DialogContent>
+           <Alert severity="info" sx={{ mb: 2 }}>
+             이전에 풀던 시험이 저장되어 있습니다.
+           </Alert>
+           
+           {savedExamSession && (
+             <Box sx={{ mt: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+               <Typography variant="body2" sx={{ mb: 1 }}>
+                 <strong>현재 진행률:</strong> {savedExamSession.currentQuestionIndex + 1}/{savedExamSession.questions.length}문제
+               </Typography>
+               <Typography variant="body2" sx={{ mb: 1 }}>
+                 <strong>완료율:</strong> {Math.round((savedExamSession.currentQuestionIndex / savedExamSession.questions.length) * 100)}%
+               </Typography>
+               {savedExamSession.lastActiveTime && (
+                 <Typography variant="body2" color="text.secondary">
+                   <strong>마지막 저장:</strong> {new Date(savedExamSession.lastActiveTime).toLocaleString('ko-KR')}
+                 </Typography>
+               )}
+             </Box>
+           )}
+           
+           <Typography variant="body1" sx={{ mt: 3, mb: 2 }}>
+             어떻게 진행하시겠습니까?
+           </Typography>
+         </DialogContent>
+         <DialogActions sx={{ p: 3, gap: 2 }}>
+           <Button 
+             onClick={handleStartNewExam}
+             variant="outlined"
+             color="warning"
+             startIcon={<RefreshIcon />}
+             sx={{ minWidth: 160 }}
+           >
+             새로 시작하기
+           </Button>
+           <Button 
+             onClick={handleContinueExamFromDialog}
+             variant="contained"
+             color="primary"
+             startIcon={<PlayArrowIcon />}
+             sx={{ minWidth: 160 }}
+           >
+             이어서 풀기
+           </Button>
+         </DialogActions>
+       </Dialog>
     </Container>
   );
 };
