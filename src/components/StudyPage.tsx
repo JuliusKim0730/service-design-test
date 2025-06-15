@@ -57,6 +57,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [isSessionRecovered, setIsSessionRecovered] = useState(false);
   const [showContinueDialog, setShowContinueDialog] = useState(false);
   const [savedSession, setSavedSession] = useState<any>(null);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   // 공부 세션 저장
   const saveCurrentStudySession = useCallback(() => {
@@ -82,6 +83,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
     }, 30000); // 30초마다
 
     return () => clearInterval(autoSaveInterval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveCurrentStudySession, isSessionRecovered, questions.length]);
 
   // 페이지 나가기 전 저장
@@ -194,6 +196,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setSelectedAnswer(null);
       setShowAnswer(false);
       setShowHint(false);
+      setImageErrors(new Set()); // 이미지 에러 상태 초기화
       
       // 다음 문제로 이동 후 세션 저장
       setTimeout(() => {
@@ -208,6 +211,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setSelectedAnswer(null);
       setShowAnswer(false);
       setShowHint(false);
+      setImageErrors(new Set()); // 이미지 에러 상태 초기화
       
       // 이전 문제로 이동 후 세션 저장
       setTimeout(() => {
@@ -229,6 +233,22 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
     saveCurrentStudySession();
     setShowStopDialog(false);
     onBackToHome();
+  };
+
+  // 이미지 에러 처리 함수
+  const handleImageError = (imageType: string, imageUrl: string) => {
+    console.error(`${imageType} 이미지 로드 실패:`, imageUrl);
+    setImageErrors(prev => new Set(prev).add(imageUrl));
+  };
+
+  // 이미지 로드 성공 처리 함수
+  const handleImageLoad = (imageType: string, imageUrl: string) => {
+    console.log(`${imageType} 이미지 로드 성공:`, imageUrl?.substring(0, 50));
+    setImageErrors(prev => {
+      const newErrors = new Set(prev);
+      newErrors.delete(imageUrl);
+      return newErrors;
+    });
   };
 
   const getSubjectDisplayName = (subject: Subject): string => {
@@ -338,20 +358,30 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
         </Typography>
 
         {/* 문제 이미지 */}
-        {currentQuestion.imageUrl && (
+        {currentQuestion.imageUrl && currentQuestion.imageUrl !== '존재함' && currentQuestion.imageUrl !== 'exists' && (
           <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <img 
-              src={currentQuestion.imageUrl} 
-              alt="문제 이미지" 
-              style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
-              onError={(e) => {
-                console.error('이미지 로드 실패:', currentQuestion.imageUrl);
-                e.currentTarget.style.display = 'none';
-              }}
-              onLoad={() => {
-                console.log('이미지 로드 성공:', currentQuestion.imageUrl?.substring(0, 50));
-              }}
-            />
+            {imageErrors.has(currentQuestion.imageUrl) ? (
+              <Box
+                sx={{
+                  padding: '20px',
+                  backgroundColor: '#ffebee',
+                  border: '1px solid #f44336',
+                  borderRadius: '8px',
+                  color: '#d32f2f',
+                  textAlign: 'center'
+                }}
+              >
+                📷 문제 이미지를 불러올 수 없습니다
+              </Box>
+            ) : (
+              <img 
+                src={currentQuestion.imageUrl} 
+                alt="문제 이미지" 
+                style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                onError={() => handleImageError('문제', currentQuestion.imageUrl!)}
+                onLoad={() => handleImageLoad('문제', currentQuestion.imageUrl!)}
+              />
+            )}
           </Box>
         )}
 
@@ -467,17 +497,30 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
                 </Typography>
               )}
               
-              {currentQuestion.hintImageUrl ? (
+              {currentQuestion.hintImageUrl && currentQuestion.hintImageUrl !== '존재함' && currentQuestion.hintImageUrl !== 'exists' ? (
                 <Box sx={{ textAlign: 'center' }}>
-                  <img 
-                    src={currentQuestion.hintImageUrl} 
-                    alt="힌트 이미지" 
-                    style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
-                    onError={(e) => {
-                      console.error('힌트 이미지 로드 실패:', currentQuestion.hintImageUrl);
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+                  {imageErrors.has(currentQuestion.hintImageUrl) ? (
+                    <Box
+                      sx={{
+                        padding: '15px',
+                        backgroundColor: '#fff3e0',
+                        border: '1px solid #ff9800',
+                        borderRadius: '8px',
+                        color: '#f57c00',
+                        textAlign: 'center'
+                      }}
+                    >
+                      📷 힌트 이미지를 불러올 수 없습니다
+                    </Box>
+                  ) : (
+                    <img 
+                      src={currentQuestion.hintImageUrl} 
+                      alt="힌트 이미지" 
+                      style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                      onError={() => handleImageError('힌트', currentQuestion.hintImageUrl!)}
+                      onLoad={() => handleImageLoad('힌트', currentQuestion.hintImageUrl!)}
+                    />
+                  )}
                 </Box>
               ) : (
                 <Typography variant="body2" sx={{ color: '#9E9E9E', fontStyle: 'italic', textAlign: 'center' }}>
@@ -533,20 +576,30 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
             </Typography>
 
             {/* 해설 이미지 */}
-            {currentQuestion.explanationImageUrl && (
+            {currentQuestion.explanationImageUrl && currentQuestion.explanationImageUrl !== '존재함' && currentQuestion.explanationImageUrl !== 'exists' && (
               <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <img 
-                  src={currentQuestion.explanationImageUrl} 
-                  alt="해설 이미지" 
-                  style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
-                  onError={(e) => {
-                    console.error('해설 이미지 로드 실패:', currentQuestion.explanationImageUrl);
-                    e.currentTarget.style.display = 'none';
-                  }}
-                  onLoad={() => {
-                    console.log('해설 이미지 로드 성공:', currentQuestion.explanationImageUrl?.substring(0, 50));
-                  }}
-                />
+                {imageErrors.has(currentQuestion.explanationImageUrl) ? (
+                  <Box
+                    sx={{
+                      padding: '15px',
+                      backgroundColor: '#e3f2fd',
+                      border: '1px solid #1976d2',
+                      borderRadius: '8px',
+                      color: '#1565c0',
+                      textAlign: 'center'
+                    }}
+                  >
+                    📷 해설 이미지를 불러올 수 없습니다
+                  </Box>
+                ) : (
+                  <img 
+                    src={currentQuestion.explanationImageUrl} 
+                    alt="해설 이미지" 
+                    style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                    onError={() => handleImageError('해설', currentQuestion.explanationImageUrl!)}
+                    onLoad={() => handleImageLoad('해설', currentQuestion.explanationImageUrl!)}
+                  />
+                )}
               </Box>
             )}
           </Box>

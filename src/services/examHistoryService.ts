@@ -44,34 +44,129 @@ interface ExamSession {
   lastActiveTime: Date;
 }
 
+// 데이터 정리 함수 (undefined 값 제거)
+const cleanDataForFirebase = (data: any): any => {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(item => cleanDataForFirebase(item));
+  }
+  
+  if (typeof data === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanDataForFirebase(value);
+      }
+    }
+    return cleaned;
+  }
+  
+  return data;
+};
+
+// 로컬 스토리지 용량 확인 및 정리
+const cleanupLocalStorageIfNeeded = (): void => {
+  try {
+    // 스토리지 용량 테스트
+    const testKey = 'test-storage-capacity';
+    const testData = 'x'.repeat(1024 * 1024); // 1MB 테스트
+    localStorage.setItem(testKey, testData);
+    localStorage.removeItem(testKey);
+  } catch (error) {
+    console.warn('로컬 스토리지 용량 부족, 정리 중...');
+    // 오래된 데이터 정리
+    const keys = Object.keys(localStorage);
+    const examKeys = keys.filter(key => key.includes('exam') || key.includes('study'));
+    
+    // 절반 정도 삭제
+    const keysToDelete = examKeys.slice(0, Math.ceil(examKeys.length / 2));
+    keysToDelete.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        console.log('정리된 키:', key);
+      } catch (e) {
+        console.warn('키 삭제 실패:', key);
+      }
+    });
+  }
+};
+
 // 시험 히스토리 저장
 export const saveExamHistory = async (examHistory: ExamHistory): Promise<void> => {
   try {
     if (isFirebaseAvailable() && db) {
       const userId = getCurrentUserId();
-      await addDoc(collection(db, 'users', userId, 'examHistory'), {
+      
+      // Firebase용 데이터 정리 (undefined 값 제거)
+      const cleanedHistory = cleanDataForFirebase({
         ...examHistory,
         examDate: examHistory.examDate.toISOString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        // 이미지 데이터가 너무 클 경우 제거
+        questions: examHistory.questions?.map(q => ({
+          ...q,
+          imageUrl: q.imageUrl && q.imageUrl.length > 50000 ? undefined : q.imageUrl,
+          explanationImageUrl: q.explanationImageUrl && q.explanationImageUrl.length > 50000 ? undefined : q.explanationImageUrl,
+          hintImageUrl: q.hintImageUrl && q.hintImageUrl.length > 50000 ? undefined : q.hintImageUrl
+        })) || []
       });
+      
+      await addDoc(collection(db, 'users', userId, 'examHistory'), cleanedHistory);
       console.log('✅ 시험 히스토리 Firebase에 저장됨');
     } else {
       // Fallback to localStorage
+      cleanupLocalStorageIfNeeded();
+      
       const existingHistory = await getExamHistory();
       const updatedHistory = [...existingHistory, examHistory];
-      localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(updatedHistory));
-      console.log('✅ 시험 히스토리 로컬에 저장됨');
+      
+      try {
+        localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(updatedHistory));
+        console.log('✅ 시험 히스토리 로컬에 저장됨');
+      } catch (storageError) {
+        console.warn('로컬 스토리지 용량 초과, 압축 저장 시도');
+        // 데이터 압축 (이미지 제거)
+        const compressedHistory = updatedHistory.map(exam => ({
+          ...exam,
+          questions: exam.questions?.map(q => ({
+            ...q,
+            imageUrl: undefined,
+            explanationImageUrl: undefined,
+            hintImageUrl: undefined
+          })) || []
+        }));
+        localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(compressedHistory));
+        console.log('✅ 시험 히스토리 압축 저장됨 (이미지 제외)');
+      }
     }
   } catch (error) {
     console.error('시험 히스토리 저장 실패:', error);
     // Firebase 실패 시 로컬 저장 시도
     try {
+      cleanupLocalStorageIfNeeded();
+      
       const existingHistory = await getExamHistory();
       const updatedHistory = [...existingHistory, examHistory];
-      localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(updatedHistory));
+      
+      // 압축된 버전으로 저장
+      const compressedHistory = updatedHistory.map(exam => ({
+        ...exam,
+        questions: exam.questions?.map(q => ({
+          ...q,
+          imageUrl: q.imageUrl && q.imageUrl.length < 10000 ? q.imageUrl : undefined,
+          explanationImageUrl: q.explanationImageUrl && q.explanationImageUrl.length < 10000 ? q.explanationImageUrl : undefined,
+          hintImageUrl: q.hintImageUrl && q.hintImageUrl.length < 10000 ? q.hintImageUrl : undefined
+        })) || []
+      }));
+      
+      localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(compressedHistory));
       console.log('✅ 시험 히스토리 로컬에 저장됨 (Firebase 실패 시)');
     } catch (localError) {
       console.error('로컬 저장도 실패:', localError);
+      throw new Error('시험 결과 저장에 실패했습니다. 브라우저 저장 공간을 확인해주세요.');
     }
   }
 };
@@ -191,63 +286,70 @@ export const clearExamHistory = async (): Promise<void> => {
 
 // 시험 세션 저장 (중간 저장)
 export const saveExamSession = async (session: ExamSession): Promise<void> => {
-  // undefined 값 제거 및 데이터 정리
-  const cleanQuestions = session.questions.map(q => ({
-    id: q.id || '',
-    subject: q.subject || '',
-    question: q.question || '',
-    options: q.options || [],
-    correctAnswer: q.correctAnswer ?? 0,
-    explanation: q.explanation || '',
-    // 이미지 URL은 저장하지 않아서 용량 절약
-    imageUrl: q.imageUrl ? '존재함' : null,
-    hintText: q.hintText || null,
-    hintImageUrl: q.hintImageUrl ? '존재함' : null
-  }));
-
-  const cleanResults = session.results.map(r => ({
-    questionId: r.questionId || '',
-    selectedAnswer: r.selectedAnswer ?? -1,
-    isCorrect: r.isCorrect || false,
-    timeSpent: r.timeSpent || 0
-  }));
-
-  const sessionData = {
-    questions: cleanQuestions,
-    currentQuestionIndex: session.currentQuestionIndex || 0,
-    results: cleanResults,
-    startTime: session.startTime?.toISOString() || new Date().toISOString(),
-    isCompleted: session.isCompleted || false,
-    lastActiveTime: new Date().toISOString()
-  };
-
   try {
+    // undefined 값 제거 및 데이터 정리
+    const cleanQuestions = session.questions.map(q => ({
+      id: q.id || '',
+      subject: q.subject || '',
+      question: q.question || '',
+      options: q.options || [],
+      correctAnswer: q.correctAnswer ?? 0,
+      explanation: q.explanation || '',
+      // 이미지 URL은 저장하지 않아서 용량 절약
+      imageUrl: q.imageUrl ? '존재함' : null,
+      hintText: q.hintText || null,
+      hintImageUrl: q.hintImageUrl ? '존재함' : null
+    }));
+
+    const cleanResults = session.results.map(r => ({
+      questionId: r.questionId || '',
+      userAnswer: r.userAnswer ?? -1,
+      isCorrect: r.isCorrect || false,
+      timeSpent: r.timeSpent || 0
+    }));
+
+    const sessionData = cleanDataForFirebase({
+      questions: cleanQuestions,
+      currentQuestionIndex: session.currentQuestionIndex || 0,
+      results: cleanResults,
+      startTime: session.startTime?.toISOString() || new Date().toISOString(),
+      isCompleted: session.isCompleted || false,
+      lastActiveTime: new Date().toISOString()
+    });
+
     if (isFirebaseAvailable() && db) {
       const userId = getCurrentUserId();
       await setDoc(doc(db, 'users', userId, 'sessions', 'currentExam'), sessionData);
       console.log('💾 시험 세션 Firebase에 저장됨:', {
         currentQuestionIndex: sessionData.currentQuestionIndex,
-        resultsCount: sessionData.results.length,
-        totalQuestions: sessionData.questions.length
+        resultsCount: sessionData.results?.length || 0,
+        totalQuestions: sessionData.questions?.length || 0
       });
     } else {
       // 로컬 스토리지 용량 체크 후 저장
-      const dataSize = JSON.stringify(sessionData).length;
-      const maxSize = 5 * 1024 * 1024; // 5MB 제한
+      cleanupLocalStorageIfNeeded();
+      
+      const dataString = JSON.stringify(sessionData);
+      const dataSize = dataString.length;
+      const maxSize = 2 * 1024 * 1024; // 2MB 제한 (더 안전하게)
       
       if (dataSize > maxSize) {
         console.warn('⚠️ 시험 세션 데이터가 너무 큽니다. 간소화된 버전으로 저장합니다.');
         // 문제 데이터 간소화
         const simplifiedData = {
-          ...sessionData,
-          questions: sessionData.questions.map(q => ({
+          currentQuestionIndex: sessionData.currentQuestionIndex,
+          results: sessionData.results,
+          startTime: sessionData.startTime,
+          isCompleted: sessionData.isCompleted,
+          lastActiveTime: sessionData.lastActiveTime,
+          questions: sessionData.questions?.map((q: any) => ({
             id: q.id,
             subject: q.subject
-          }))
+          })) || []
         };
         localStorage.setItem(EXAM_SESSION_KEY, JSON.stringify(simplifiedData));
       } else {
-        localStorage.setItem(EXAM_SESSION_KEY, JSON.stringify(sessionData));
+        localStorage.setItem(EXAM_SESSION_KEY, dataString);
       }
       console.log('💾 시험 세션 로컬에 저장됨');
     }
@@ -255,13 +357,20 @@ export const saveExamSession = async (session: ExamSession): Promise<void> => {
     console.error('시험 세션 저장 실패:', error);
     // Firebase 실패 시 로컬 저장 (간소화된 버전)
     try {
+      cleanupLocalStorageIfNeeded();
+      
       const simplifiedData = {
-        currentQuestionIndex: sessionData.currentQuestionIndex,
-        results: sessionData.results,
-        startTime: sessionData.startTime,
-        isCompleted: sessionData.isCompleted,
-        lastActiveTime: sessionData.lastActiveTime,
-        totalQuestions: sessionData.questions.length
+        currentQuestionIndex: session.currentQuestionIndex || 0,
+        results: session.results?.map(r => ({
+          questionId: r.questionId || '',
+          userAnswer: r.userAnswer ?? -1,
+          isCorrect: r.isCorrect || false,
+          timeSpent: r.timeSpent || 0
+        })) || [],
+        startTime: session.startTime?.toISOString() || new Date().toISOString(),
+        isCompleted: session.isCompleted || false,
+        lastActiveTime: new Date().toISOString(),
+        totalQuestions: session.questions?.length || 0
       };
       localStorage.setItem(EXAM_SESSION_KEY, JSON.stringify(simplifiedData));
       console.log('💾 시험 세션 간소화 버전으로 로컬에 저장됨');
@@ -272,17 +381,19 @@ export const saveExamSession = async (session: ExamSession): Promise<void> => {
         // 기존 세션 데이터 삭제
         localStorage.removeItem(EXAM_SESSION_KEY);
         localStorage.removeItem(STUDY_SESSION_KEY);
+        
         // 최소 데이터만 저장
         const minimalData = {
-          currentQuestionIndex: sessionData.currentQuestionIndex,
-          startTime: sessionData.startTime,
-          isCompleted: sessionData.isCompleted,
-          lastActiveTime: sessionData.lastActiveTime
+          currentQuestionIndex: session.currentQuestionIndex || 0,
+          startTime: session.startTime?.toISOString() || new Date().toISOString(),
+          isCompleted: session.isCompleted || false,
+          lastActiveTime: new Date().toISOString()
         };
         localStorage.setItem(EXAM_SESSION_KEY, JSON.stringify(minimalData));
         console.log('💾 최소 데이터로 저장 완료');
       } catch (finalError) {
         console.error('최종 저장 실패:', finalError);
+        throw new Error('세션 저장에 실패했습니다. 브라우저 저장 공간을 확인해주세요.');
       }
     }
   }

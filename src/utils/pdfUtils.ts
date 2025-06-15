@@ -73,27 +73,51 @@ export const generateExamResultPDF = async (
 
     console.log('🖼️ Canvas 생성 시작');
 
-    // HTML을 canvas로 변환 (더 안전한 옵션들)
+    // HTML을 canvas로 변환 (안전하고 안정적인 옵션)
     const canvas = await html2canvas(tempDiv, {
-      scale: 1.5,
+      scale: 1,  // 스케일 낮춤으로 안정성 증대
       useCORS: false,
       allowTaint: false,
       backgroundColor: '#ffffff',
-      width: 800,
-      height: tempDiv.scrollHeight || 1200,
+      width: tempDiv.offsetWidth || 800,
+      height: tempDiv.scrollHeight || 800,
       scrollX: 0,
       scrollY: 0,
-      ignoreElements: (element) => {
-        // 이미지 요소나 외부 리소스 무시
-        return element.tagName === 'IMG' || element.tagName === 'VIDEO';
-      },
-      onclone: (clonedDoc) => {
-        // 클론된 문서에서 외부 이미지 제거
-        const images = clonedDoc.querySelectorAll('img');
-        images.forEach(img => {
-          img.style.display = 'none';
-        });
-      }
+      logging: false,  // 로깅 비활성화
+      imageTimeout: 0,  // 이미지 로딩 타임아웃 비활성화
+              ignoreElements: (element) => {
+          // 모든 이미지와 미디어 요소 무시
+          const tagName = element.tagName?.toLowerCase();
+          const htmlElement = element as HTMLElement;
+          return tagName === 'img' || 
+                 tagName === 'video' || 
+                 tagName === 'canvas' ||
+                 tagName === 'svg' ||
+                 element.classList?.contains('image') ||
+                 !!(htmlElement.style?.backgroundImage);
+        },
+              onclone: (clonedDoc) => {
+          try {
+            // 클론된 문서에서 모든 이미지 및 미디어 요소 제거
+            const problematicElements = clonedDoc.querySelectorAll('img, video, canvas, svg, [style*="background-image"]');
+            problematicElements.forEach(el => {
+              const htmlEl = el as HTMLElement;
+              htmlEl.style.display = 'none';
+              htmlEl.style.visibility = 'hidden';
+            });
+            
+            // 폰트 및 스타일 강제 적용
+            const body = clonedDoc.body;
+            if (body) {
+              body.style.fontFamily = 'Arial, sans-serif, "맑은 고딕", "Malgun Gothic"';
+              body.style.fontSize = '14px';
+              body.style.lineHeight = '1.6';
+              body.style.color = '#333';
+            }
+          } catch (cloneError) {
+            console.warn('Clone 처리 중 오류:', cloneError);
+          }
+        }
     });
 
     console.log('🖼️ Canvas 생성 완료:', {
@@ -114,18 +138,33 @@ export const generateExamResultPDF = async (
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     
-    // Canvas를 PNG로 변환 (품질 개선)
+    // Canvas를 PNG로 변환 (안전한 품질 설정)
     let imgData: string;
     try {
-      imgData = canvas.toDataURL('image/png', 0.95);
+      // 먼저 JPEG로 시도 (용량 절약)
+      imgData = canvas.toDataURL('image/jpeg', 0.8);
+      
+      // 데이터가 비어있으면 PNG로 재시도
+      if (!imgData || imgData === 'data:,' || imgData.length < 100) {
+        console.log('JPEG 변환 실패, PNG로 재시도');
+        imgData = canvas.toDataURL('image/png', 0.8);
+      }
     } catch (canvasError) {
       console.error('Canvas toDataURL 실패:', canvasError);
-      throw new Error('이미지 변환에 실패했습니다.');
+      
+      // 최후 수단: 간단한 텍스트 기반 PDF 생성
+      console.log('이미지 변환 실패, 텍스트 기반 PDF로 대체');
+      throw new Error('이미지 변환에 실패했습니다. 텍스트 기반 PDF를 생성해주세요.');
     }
 
-    // 이미지 데이터 검증
-    if (!imgData || imgData === 'data:,') {
-      throw new Error('이미지 데이터가 생성되지 않았습니다.');
+    // 이미지 데이터 검증 (더 엄격하게)
+    if (!imgData || imgData === 'data:,' || imgData.length < 100) {
+      console.error('이미지 데이터 검증 실패:', {
+        exists: !!imgData,
+        length: imgData?.length || 0,
+        preview: imgData?.substring(0, 50) || 'empty'
+      });
+      throw new Error('유효한 이미지 데이터가 생성되지 않았습니다.');
     }
 
     console.log('📄 PDF에 이미지 추가');
@@ -198,7 +237,147 @@ export const generateExamResultPDF = async (
     console.log('✅ PDF 생성 완료');
   } catch (error) {
     console.error('❌ PDF 생성 실패:', error);
+    
+    // 이미지 기반 PDF 생성이 실패하면 텍스트 기반 PDF로 대체
+    if (error instanceof Error && (
+        error.message.includes('이미지 변환') || 
+        error.message.includes('Canvas') || 
+        error.message.includes('toDataURL')
+      )) {
+      console.log('🔄 텍스트 기반 PDF 생성으로 대체');
+      try {
+        await generateTextBasedExamResultPDF(
+          questions,
+          results,
+          subjectScores,
+          totalScore,
+          totalQuestions,
+          examDate,
+          options
+        );
+        return;
+      } catch (textError) {
+        console.error('텍스트 기반 PDF도 실패:', textError);
+      }
+    }
+    
     throw new Error(`PDF 생성에 실패했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+// 텍스트 기반 PDF 생성 (이미지 변환 실패 시 대체)
+const generateTextBasedExamResultPDF = async (
+  questions: Question[],
+  results: QuestionResult[],
+  subjectScores: SubjectScore[],
+  totalScore: number,
+  totalQuestions: number,
+  examDate: Date,
+  options: PDFOptions
+): Promise<void> => {
+  try {
+    const { fileName = `시험결과_텍스트_${formatDate(examDate)}.pdf` } = options;
+    
+    console.log('📄 텍스트 기반 PDF 생성 시작');
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    let currentY = 20;
+    
+    // 폰트 설정 (한글 지원)
+    pdf.setFont('helvetica');
+    
+    // 제목
+    pdf.setFontSize(18);
+    const title = 'Service Design Test Result';
+    pdf.text(title, pageWidth / 2, currentY, { align: 'center' });
+    currentY += 15;
+    
+    // 시험 날짜
+    pdf.setFontSize(12);
+    pdf.text(`Exam Date: ${formatDate(examDate)}`, 20, currentY);
+    currentY += 10;
+    
+    // 총점
+    pdf.setFontSize(14);
+    const correctCount = Math.round(totalScore * totalQuestions / 100);
+    pdf.text(`Total Score: ${totalScore}% (${correctCount}/${totalQuestions} correct)`, 20, currentY);
+    currentY += 15;
+    
+    // 과목별 점수
+    pdf.setFontSize(12);
+    pdf.text('Subject Scores:', 20, currentY);
+    currentY += 8;
+    
+    subjectScores.forEach(score => {
+      const subjectName = getSubjectDisplayName(score.subject);
+      pdf.text(`- ${subjectName}: ${score.correct}/${score.total} (${score.percentage}%)`, 25, currentY);
+      currentY += 6;
+    });
+    
+    currentY += 10;
+    
+    // 틀린 문제 목록
+    const wrongQuestions = questions.filter((_, index) => !results[index]?.isCorrect);
+    if (wrongQuestions.length > 0) {
+      pdf.text(`Wrong Answers (${wrongQuestions.length} questions):`, 20, currentY);
+      currentY += 8;
+      
+      wrongQuestions.forEach((question, index) => {
+        const questionIndex = questions.findIndex(q => q.id === question.id) + 1;
+        const result = results[questions.findIndex(q => q.id === question.id)];
+        
+        // 새 페이지 필요한지 확인
+        if (currentY > 250) {
+          pdf.addPage();
+          currentY = 20;
+        }
+        
+        // 문제 번호와 과목
+        pdf.text(`${index + 1}. Question ${questionIndex} (${getSubjectDisplayName(question.subject)})`, 20, currentY);
+        currentY += 6;
+        
+        // 문제 내용 (길면 줄바꿈)
+        const questionText = question.question.substring(0, 70) + (question.question.length > 70 ? '...' : '');
+        const lines = pdf.splitTextToSize(`   Q: ${questionText}`, pageWidth - 40);
+        pdf.text(lines, 20, currentY);
+        currentY += lines.length * 6;
+        
+        // 정답과 오답
+        if (question.options && question.options.length > 0) {
+          const correctText = question.options[question.correctAnswer] || 'No answer';
+          pdf.text(`   Correct: ${correctText.substring(0, 50)}${correctText.length > 50 ? '...' : ''}`, 20, currentY);
+          currentY += 5;
+          
+          const selectedAnswer = result?.userAnswer ?? -1;
+          if (selectedAnswer >= 0 && selectedAnswer < question.options.length) {
+            const selectedText = question.options[selectedAnswer];
+            pdf.text(`   Selected: ${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}`, 20, currentY);
+          } else {
+            pdf.text(`   Selected: No selection`, 20, currentY);
+          }
+          currentY += 5;
+        }
+        
+        // 설명이 있으면 추가
+        if (question.explanation && options.includeExplanations) {
+          const explanationText = question.explanation.substring(0, 80) + (question.explanation.length > 80 ? '...' : '');
+          const explanationLines = pdf.splitTextToSize(`   Explanation: ${explanationText}`, pageWidth - 40);
+          pdf.text(explanationLines, 20, currentY);
+          currentY += explanationLines.length * 5;
+        }
+        
+        currentY += 3; // 문제 간 간격
+      });
+    }
+    
+    console.log('💾 텍스트 기반 PDF 저장:', fileName);
+    pdf.save(fileName);
+    console.log('✅ 텍스트 기반 PDF 생성 완료');
+    
+  } catch (error) {
+    console.error('❌ 텍스트 기반 PDF 생성 실패:', error);
+    throw new Error('PDF 생성에 완전히 실패했습니다.');
   }
 };
 

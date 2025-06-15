@@ -16,28 +16,59 @@ import { sampleQuestions } from '../data/questions';
 const QUESTIONS_COLLECTION = 'questions';
 const LOCAL_STORAGE_KEY = 'service_design_questions';
 
-// 이미지 URL 유효성 검사 함수
-const isValidImageUrl = (url: string): boolean => {
-  // 빈 문자열이거나 undefined인 경우만 제외
+// 이미지 URL 유효성 검사 및 복원 함수
+const validateAndRestoreImageUrl = (url: string, questionId?: number, imageType?: 'imageUrl' | 'explanationImageUrl' | 'hintImageUrl'): string | undefined => {
+  // 빈 문자열이거나 undefined인 경우
   if (!url || url.trim() === '') {
-    return false;
+    return undefined;
+  }
+  
+  // "존재함" 표시자인 경우 (세션 저장에서 복원)
+  if (url === '존재함' || url === 'exists') {
+    console.log(`⚠️ 문제 ${questionId}: 이미지가 세션에서 압축되어 저장되었습니다. 원본 데이터에서 복원을 시도합니다.`);
+    
+    // 원본 데이터에서 이미지 찾기
+    if (questionId && imageType) {
+      const originalQuestion = sampleQuestions.find(q => q.id === questionId);
+      if (originalQuestion) {
+        const originalImageUrl = originalQuestion[imageType];
+        if (originalImageUrl && originalImageUrl !== '존재함' && originalImageUrl !== 'exists') {
+          console.log(`✅ 문제 ${questionId}: ${imageType} 원본 데이터에서 복원됨`);
+          return originalImageUrl;
+        }
+      }
+    }
+    
+    console.log(`❌ 문제 ${questionId}: ${imageType} 원본 데이터에서 복원 실패`);
+    return undefined;
   }
   
   // Base64 이미지인 경우 (가장 일반적)
   if (url.startsWith('data:image/')) {
-    console.log('✅ Base64 이미지 확인:', url.substring(0, 30) + '...');
-    return true;
+    console.log(`✅ 문제 ${questionId}: Base64 이미지 확인됨`);
+    return url;
   }
   
-  // HTTP/HTTPS URL인 경우도 허용
+  // HTTP/HTTPS URL인 경우
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    console.log('🌐 URL 이미지 확인:', url);
-    return true;
+    console.log(`🌐 문제 ${questionId}: URL 이미지 확인됨`);
+    return url;
   }
   
-  // 기타 모든 경우도 일단 허용
-  console.log('❓ 기타 이미지 URL:', url.substring(0, 50) + '...');
-  return true;
+  // 상대 경로나 기타 경로
+  if (url.includes('/') || url.includes('.')) {
+    console.log(`📁 문제 ${questionId}: 파일 경로 이미지`);
+    return url;
+  }
+  
+  console.log(`❓ 문제 ${questionId}: 알 수 없는 이미지 형식:`, url.substring(0, 50) + '...');
+  return url; // 일단 그대로 반환
+};
+
+// 이미지 URL 유효성 검사 함수 (기존 호환성 유지)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const isValidImageUrl = (url: string): boolean => {
+  return validateAndRestoreImageUrl(url) !== undefined;
 };
 
 // Firebase 연결 확인 함수
@@ -151,11 +182,15 @@ export const getAllQuestions = async (): Promise<Question[]> => {
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지에서 데이터를 불러옵니다...');
     const localQuestions = loadFromLocalStorage();
-    return localQuestions.map(q => ({
+    const processedQuestions = localQuestions.map(q => ({
       ...q,
-      imageUrl: q.imageUrl && isValidImageUrl(q.imageUrl) ? q.imageUrl : undefined,
-      explanationImageUrl: q.explanationImageUrl && isValidImageUrl(q.explanationImageUrl) ? q.explanationImageUrl : undefined
+      imageUrl: validateAndRestoreImageUrl(q.imageUrl || '', q.id, 'imageUrl'),
+      explanationImageUrl: validateAndRestoreImageUrl(q.explanationImageUrl || '', q.id, 'explanationImageUrl'),
+      hintImageUrl: validateAndRestoreImageUrl(q.hintImageUrl || '', q.id, 'hintImageUrl')
     }));
+    
+    console.log(`💾 로컬에서 ${processedQuestions.length}개 문제 로드 (Firebase 없음)`);
+    return processedQuestions;
   }
 
   try {
@@ -166,27 +201,33 @@ export const getAllQuestions = async (): Promise<Question[]> => {
     const questions: Question[] = [];
     questionsSnapshot.forEach((doc) => {
       const questionData = doc.data() as Question;
-      // 이미지 URL 검증 후 추가
-      questions.push({
-        ...questionData,
-        imageUrl: questionData.imageUrl && isValidImageUrl(questionData.imageUrl) ? questionData.imageUrl : undefined,
-        explanationImageUrl: questionData.explanationImageUrl && isValidImageUrl(questionData.explanationImageUrl) ? questionData.explanationImageUrl : undefined
-      });
+              // 이미지 URL 검증 및 복원 후 추가
+        questions.push({
+          ...questionData,
+          imageUrl: validateAndRestoreImageUrl(questionData.imageUrl || '', questionData.id, 'imageUrl'),
+          explanationImageUrl: validateAndRestoreImageUrl(questionData.explanationImageUrl || '', questionData.id, 'explanationImageUrl'),
+          hintImageUrl: validateAndRestoreImageUrl(questionData.hintImageUrl || '', questionData.id, 'hintImageUrl')
+        });
     });
     
     // 로컬 스토리지에도 백업
     saveToLocalStorage(questions);
     
+    console.log(`📚 Firebase에서 ${questions.length}개 문제 로드 완료`);
     return questions;
   } catch (error) {
     console.error('Firestore에서 문제 가져오기 실패:', error);
     console.log('로컬 스토리지에서 데이터를 불러옵니다...');
     const localQuestions = loadFromLocalStorage();
-    return localQuestions.map(q => ({
+    const processedQuestions = localQuestions.map(q => ({
       ...q,
-      imageUrl: q.imageUrl && isValidImageUrl(q.imageUrl) ? q.imageUrl : undefined,
-      explanationImageUrl: q.explanationImageUrl && isValidImageUrl(q.explanationImageUrl) ? q.explanationImageUrl : undefined
+      imageUrl: validateAndRestoreImageUrl(q.imageUrl || '', q.id, 'imageUrl'),
+      explanationImageUrl: validateAndRestoreImageUrl(q.explanationImageUrl || '', q.id, 'explanationImageUrl'),
+      hintImageUrl: validateAndRestoreImageUrl(q.hintImageUrl || '', q.id, 'hintImageUrl')
     }));
+    
+    console.log(`💾 로컬 스토리지에서 ${processedQuestions.length}개 문제 로드 완료`);
+    return processedQuestions;
   }
 };
 
@@ -195,11 +236,13 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
   if (!isFirebaseAvailable()) {
     console.log('Firebase를 사용할 수 없습니다. 로컬 스토리지 데이터를 사용합니다...');
     const localQuestions = loadFromLocalStorage();
-    // 힌트 필드 처리
+    // 이미지 및 힌트 필드 처리
     const processedLocalQuestions = localQuestions.map(q => ({
       ...q,
-      hintText: q.hintText || undefined,
-      hintImageUrl: q.hintImageUrl || undefined
+      imageUrl: validateAndRestoreImageUrl(q.imageUrl || '', q.id),
+      explanationImageUrl: validateAndRestoreImageUrl(q.explanationImageUrl || '', q.id),
+      hintImageUrl: validateAndRestoreImageUrl(q.hintImageUrl || '', q.id),
+      hintText: q.hintText || undefined
     }));
     console.log('📁 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
     callback(processedLocalQuestions);
@@ -213,11 +256,13 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
       const questions: Question[] = [];
       snapshot.forEach((doc) => {
         const questionData = doc.data() as Question;
-        // 힌트 필드 처리 - 기존 데이터에 없으면 undefined로 설정
+        // 이미지 및 힌트 필드 처리
         const processedQuestion: Question = {
           ...questionData,
-          hintText: questionData.hintText || undefined,
-          hintImageUrl: questionData.hintImageUrl || undefined
+          imageUrl: validateAndRestoreImageUrl(questionData.imageUrl || '', questionData.id, 'imageUrl'),
+          explanationImageUrl: validateAndRestoreImageUrl(questionData.explanationImageUrl || '', questionData.id, 'explanationImageUrl'),
+          hintImageUrl: validateAndRestoreImageUrl(questionData.hintImageUrl || '', questionData.id, 'hintImageUrl'),
+          hintText: questionData.hintText || undefined
         };
         questions.push(processedQuestion);
       });
@@ -241,8 +286,10 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
       const localQuestions = loadFromLocalStorage();
       const processedLocalQuestions = localQuestions.map(q => ({
         ...q,
-        hintText: q.hintText || undefined,
-        hintImageUrl: q.hintImageUrl || undefined
+        imageUrl: validateAndRestoreImageUrl(q.imageUrl || '', q.id),
+        explanationImageUrl: validateAndRestoreImageUrl(q.explanationImageUrl || '', q.id),
+        hintImageUrl: validateAndRestoreImageUrl(q.hintImageUrl || '', q.id),
+        hintText: q.hintText || undefined
       }));
       console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
       callback(processedLocalQuestions);
@@ -253,8 +300,10 @@ export const subscribeToQuestions = (callback: (questions: Question[]) => void) 
     const localQuestions = loadFromLocalStorage();
     const processedLocalQuestions = localQuestions.map(q => ({
       ...q,
-      hintText: q.hintText || undefined,
-      hintImageUrl: q.hintImageUrl || undefined
+      imageUrl: validateAndRestoreImageUrl(q.imageUrl || '', q.id),
+      explanationImageUrl: validateAndRestoreImageUrl(q.explanationImageUrl || '', q.id),
+      hintImageUrl: validateAndRestoreImageUrl(q.hintImageUrl || '', q.id),
+      hintText: q.hintText || undefined
     }));
     console.log('📁 오류시 로컬 스토리지에서 로드된 문제 수:', processedLocalQuestions.length);
     callback(processedLocalQuestions);

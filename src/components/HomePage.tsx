@@ -17,10 +17,6 @@ import {
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
-  QuestionAnswer as QuestionIcon,
-  School as StudyIcon,
-  Quiz as ExamIcon,
-  Assessment as AssessmentIcon,
   PlayArrow as PlayArrowIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';

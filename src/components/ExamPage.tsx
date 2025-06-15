@@ -50,6 +50,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
   const [examSessionStartTime] = useState<Date>(examStartTime || new Date());
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [timer, setTimer] = useState(0);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   const currentQuestion = questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -122,6 +123,22 @@ const ExamPage: React.FC<ExamPageProps> = ({
     setShowExitDialog(false);
   };
 
+  // 이미지 에러 처리 함수
+  const handleImageError = (imageType: string, imageUrl: string) => {
+    console.error(`${imageType} 이미지 로드 실패:`, imageUrl);
+    setImageErrors(prev => new Set(prev).add(imageUrl));
+  };
+
+  // 이미지 로드 성공 처리 함수
+  const handleImageLoad = (imageType: string, imageUrl: string) => {
+    console.log(`${imageType} 이미지 로드 성공:`, imageUrl?.substring(0, 50));
+    setImageErrors(prev => {
+      const newErrors = new Set(prev);
+      newErrors.delete(imageUrl);
+      return newErrors;
+    });
+  };
+
   const handleAnswerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedAnswer(parseInt(event.target.value));
   };
@@ -144,6 +161,7 @@ const ExamPage: React.FC<ExamPageProps> = ({
 
     // 바로 다음 문제로 진행 (결과 표시 없이)
     setSelectedAnswer(null);
+    setImageErrors(new Set()); // 이미지 에러 상태 초기화
 
     if (currentQuestionIndex + 1 >= questions.length) {
       // 시험 완료 - 세션 삭제
@@ -217,26 +235,36 @@ const ExamPage: React.FC<ExamPageProps> = ({
           </Typography>
 
           {/* 문제 이미지 표시 */}
-          {currentQuestion.imageUrl && (
+          {currentQuestion.imageUrl && currentQuestion.imageUrl !== '존재함' && currentQuestion.imageUrl !== 'exists' && (
             <Box sx={{ mb: 4, textAlign: 'center' }}>
-              <img 
-                src={currentQuestion.imageUrl} 
-                alt="문제 이미지" 
-                style={{ 
-                  maxWidth: '100%', 
-                  height: 'auto',
-                  borderRadius: 8,
-                  border: '1px solid #e0e0e0',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}
-                onError={(e) => {
-                  console.error('이미지 로드 실패:', currentQuestion.imageUrl);
-                  e.currentTarget.style.display = 'none';
-                }}
-                onLoad={() => {
-                  console.log('이미지 로드 성공:', currentQuestion.imageUrl?.substring(0, 50));
-                }}
-              />
+              {imageErrors.has(currentQuestion.imageUrl) ? (
+                <Box
+                  sx={{
+                    padding: '20px',
+                    backgroundColor: '#ffebee',
+                    border: '1px solid #f44336',
+                    borderRadius: '8px',
+                    color: '#d32f2f',
+                    textAlign: 'center'
+                  }}
+                >
+                  📷 문제 이미지를 불러올 수 없습니다
+                </Box>
+              ) : (
+                <img 
+                  src={currentQuestion.imageUrl} 
+                  alt="문제 이미지" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    height: 'auto',
+                    borderRadius: 8,
+                    border: '1px solid #e0e0e0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
+                  onError={() => handleImageError('문제', currentQuestion.imageUrl!)}
+                  onLoad={() => handleImageLoad('문제', currentQuestion.imageUrl!)}
+                />
+              )}
             </Box>
           )}
 
