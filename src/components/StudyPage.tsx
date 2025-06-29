@@ -31,7 +31,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   PlayArrow as PlayArrowIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Home as HomeIcon,
+  EmojiEvents as TrophyIcon
 } from '@mui/icons-material';
 import { Question, Subject } from '../types/Question';
 import { subscribeToQuestions } from '../services/questionService';
@@ -46,6 +48,18 @@ interface StudyPageProps {
   onBackToHome: () => void;
 }
 
+// 공부 결과 인터페이스
+interface StudyResult {
+  questionId: number;
+  question: string;
+  subject: Subject;
+  selectedAnswer: number;
+  correctAnswer: number;
+  isCorrect: boolean;
+  options: string[];
+  explanation: string;
+}
+
 const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -58,6 +72,10 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   const [showContinueDialog, setShowContinueDialog] = useState(false);
   const [savedSession, setSavedSession] = useState<any>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  
+  // 새로 추가: 공부 완료 관련 상태
+  const [isStudyCompleted, setIsStudyCompleted] = useState(false);
+  const [studyResults, setStudyResults] = useState<StudyResult[]>([]);
 
   // 공부 세션 저장
   const saveCurrentStudySession = useCallback(() => {
@@ -98,6 +116,7 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [saveCurrentStudySession]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Firebase에서 실시간으로 모든 문제를 구독하여 가져오기
     const unsubscribe = subscribeToQuestions(async (allQuestions) => {
@@ -140,7 +159,24 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
   // 저장된 세션 이어서 하기
   const handleContinueStudy = () => {
     if (savedSession) {
-      setQuestions(savedSession.questions);
+      // 현재 로드된 전체 문제에서 세션의 문제들과 ID를 매칭해서 이미지 URL 복원
+      const restoredQuestions = savedSession.questions.map((sessionQuestion: Question) => {
+        const originalQuestion = questions.find(q => q.id === sessionQuestion.id);
+        if (originalQuestion) {
+          // 원본 문제의 이미지 URL을 사용해서 복원
+          return {
+            ...sessionQuestion,
+            imageUrl: originalQuestion.imageUrl,
+            explanationImageUrl: originalQuestion.explanationImageUrl,
+            hintImageUrl: originalQuestion.hintImageUrl
+          };
+        }
+        return sessionQuestion;
+      });
+      
+      console.log('🔄 세션 문제 이미지 URL 복원 완료');
+      
+      setQuestions(restoredQuestions);
       setCurrentQuestionIndex(savedSession.currentQuestionIndex);
       setAnsweredQuestions(new Set(savedSession.answeredQuestions));
       setShowContinueDialog(false);
@@ -182,6 +218,39 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
       setShowAnswer(true);
       const newAnsweredQuestions = new Set(Array.from(answeredQuestions).concat([currentQuestionIndex]));
       setAnsweredQuestions(newAnsweredQuestions);
+      
+      // 결과 기록
+      const currentResult: StudyResult = {
+        questionId: currentQuestion.id,
+        question: currentQuestion.question,
+        subject: currentQuestion.subject,
+        selectedAnswer: selectedAnswer,
+        correctAnswer: currentQuestion.correctAnswer,
+        isCorrect: selectedAnswer === currentQuestion.correctAnswer,
+        options: currentQuestion.options,
+        explanation: currentQuestion.explanation
+      };
+      
+      setStudyResults(prev => {
+        const newResults = [...prev];
+        const existingIndex = newResults.findIndex(r => r.questionId === currentQuestion.id);
+        if (existingIndex >= 0) {
+          newResults[existingIndex] = currentResult;
+        } else {
+          newResults.push(currentResult);
+        }
+        return newResults;
+      });
+      
+      // 80문제 완료했는지 확인 (전체 문제 수와 관계없이 80문제 완료 시 완료 화면 표시)
+      if (newAnsweredQuestions.size >= 80) {
+        // 1초 후에 완료 화면 표시 (사용자가 답안을 확인할 시간을 줌)
+        setTimeout(() => {
+          setIsStudyCompleted(true);
+          clearStudySession(); // 완료 시 세션 정리
+        }, 1000);
+        console.log('🎉 80문제 완료! 완료 화면을 표시합니다.');
+      }
       
       // 답안 확인 후 세션 저장
       setTimeout(() => {
@@ -270,6 +339,217 @@ const StudyPage: React.FC<StudyPageProps> = ({ onBackToHome }) => {
     };
     return colors[subject];
   };
+
+  // 공부 완료 결과 계산
+  const calculateStudyResults = () => {
+    const totalQuestions = studyResults.length;
+    const correctAnswers = studyResults.filter(result => result.isCorrect).length;
+    const incorrectAnswers = totalQuestions - correctAnswers;
+    const incorrectQuestions = studyResults.filter(result => !result.isCorrect);
+    
+    return {
+      totalQuestions,
+      correctAnswers,
+      incorrectAnswers,
+      incorrectQuestions,
+      accuracy: totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
+    };
+  };
+
+  // 과목별 결과 계산
+  const calculateSubjectResults = () => {
+    const subjectMap: Record<Subject, { correct: number; total: number }> = {
+      '서비스경험디자인기획설계': { correct: 0, total: 0 },
+      '사용자조사분석': { correct: 0, total: 0 },
+      '사용자중심전략수립': { correct: 0, total: 0 },
+      '서비스경험디자인개발및운영': { correct: 0, total: 0 }
+    };
+
+    studyResults.forEach(result => {
+      subjectMap[result.subject].total += 1;
+      if (result.isCorrect) {
+        subjectMap[result.subject].correct += 1;
+      }
+    });
+
+    return subjectMap;
+  };
+
+  // 완료 화면 렌더링
+  const renderCompletionScreen = () => {
+    const results = calculateStudyResults();
+    const subjectResults = calculateSubjectResults();
+
+    return (
+      <Container maxWidth="lg" sx={{ minHeight: '100vh', py: 4 }}>
+        <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
+          {/* 완료 축하 메시지 */}
+          <Box mb={4}>
+            <TrophyIcon sx={{ fontSize: 80, color: '#FFD700', mb: 2 }} />
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              gutterBottom 
+              sx={{ 
+                fontWeight: 'bold',
+                color: '#FF9800',
+                mb: 2
+              }}
+            >
+              🎉 수고하셨습니다!
+            </Typography>
+            <Typography variant="h5" color="text.secondary" sx={{ mb: 3 }}>
+              오늘의 공부 결과를 공유드립니다
+            </Typography>
+          </Box>
+
+          {/* 전체 결과 요약 */}
+          <Box mb={4}>
+            <Paper elevation={2} sx={{ p: 3, backgroundColor: '#f8f9fa' }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                📊 전체 결과
+              </Typography>
+              <Box display="flex" justifyContent="center" gap={4} mb={2}>
+                <Box textAlign="center">
+                  <Typography variant="h4" sx={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                    {results.totalQuestions}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    총 문제 수
+                  </Typography>
+                </Box>
+                <Box textAlign="center">
+                  <Typography variant="h4" sx={{ color: '#2196F3', fontWeight: 'bold' }}>
+                    {results.correctAnswers}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    정답 개수
+                  </Typography>
+                </Box>
+                <Box textAlign="center">
+                  <Typography variant="h4" sx={{ color: '#F44336', fontWeight: 'bold' }}>
+                    {results.incorrectAnswers}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    오답 개수
+                  </Typography>
+                </Box>
+                <Box textAlign="center">
+                  <Typography variant="h4" sx={{ color: '#FF9800', fontWeight: 'bold' }}>
+                    {results.accuracy}%
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    정답률
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          </Box>
+
+          {/* 과목별 결과 */}
+          <Box mb={4}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+              📋 과목별 결과
+            </Typography>
+            <Box display="grid" gridTemplateColumns="repeat(auto-fit, minmax(250px, 1fr))" gap={2}>
+              {Object.entries(subjectResults).map(([subject, result]) => {
+                const accuracy = result.total > 0 ? Math.round((result.correct / result.total) * 100) : 0;
+                const getAccuracyColor = (acc: number) => {
+                  if (acc >= 80) return '#4CAF50';
+                  if (acc >= 60) return '#FF9800';
+                  return '#F44336';
+                };
+
+                return (
+                  <Card key={subject} elevation={1}>
+                    <CardContent>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        {getSubjectDisplayName(subject as Subject)}
+                      </Typography>
+                      <Typography variant="h5" sx={{ color: getAccuracyColor(accuracy), fontWeight: 'bold', mb: 1 }}>
+                        {result.correct}/{result.total}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        정답률: {accuracy}%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </Box>
+          </Box>
+
+          {/* 오답 문제 목록 */}
+          {results.incorrectQuestions.length > 0 && (
+            <Box mb={4}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#F44336' }}>
+                ❌ 틀린 문제 목록
+              </Typography>
+              <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                {results.incorrectQuestions.map((result, index) => (
+                  <Card key={result.questionId} elevation={1} sx={{ mb: 2 }}>
+                    <CardContent>
+                      <Box display="flex" alignItems="flex-start" gap={2}>
+                        <Chip 
+                          label={getSubjectDisplayName(result.subject)}
+                          size="small"
+                          sx={{ 
+                            backgroundColor: getSubjectColor(result.subject),
+                            color: 'white',
+                            fontWeight: 'bold'
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="body1" sx={{ mt: 1, mb: 2 }}>
+                        <strong>문제:</strong> {result.question}
+                      </Typography>
+                      <Box sx={{ backgroundColor: '#ffebee', p: 2, borderRadius: 1, mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#d32f2f' }}>
+                          <strong>선택한 답:</strong> {result.selectedAnswer + 1}번 - {result.options[result.selectedAnswer]}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ backgroundColor: '#e8f5e8', p: 2, borderRadius: 1, mb: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#2e7d32' }}>
+                          <strong>정답:</strong> {result.correctAnswer + 1}번 - {result.options[result.correctAnswer]}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>해설:</strong> {result.explanation}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* 완료 버튼 */}
+          <Box>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<HomeIcon />}
+              onClick={onBackToHome}
+              sx={{
+                backgroundColor: '#FF9800',
+                '&:hover': { backgroundColor: '#F57C00' },
+                px: 4,
+                py: 2,
+                fontSize: '1.1rem'
+              }}
+            >
+              홈으로 돌아가기
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    );
+  };
+
+  // 완료된 경우 완료 화면 표시
+  if (isStudyCompleted) {
+    return renderCompletionScreen();
+  }
 
   if (questions.length === 0) {
     return (
